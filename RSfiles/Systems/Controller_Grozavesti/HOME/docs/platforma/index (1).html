@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Robot Studio</title>
+    <link rel="stylesheet" href="assets/css/bootstrap.css">
+    <link rel="stylesheet" href="https://bootswatch.com/paper/bootstrap.css">
+    <link rel="stylesheet" href="assets/css/bootstrap-toggle.css">
+    <link rel="stylesheet" href="assets/css/bootstrap-slider.css">
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet"
+          integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+
+    <script src="assets/js/jquery.js"></script>
+
+    <script src="assets/js/bootstrap.js"></script>
+    <script src="assets/js/bootstrap-toggle.js"></script>
+    <script src="assets/js/bootstrap-slider.js"></script>
+    <script src="assets/js/jquery.matchHeight-min.js"></script>
+    <script src="assets/js/Chart.bundle.js"></script>
+    <script src="assets/js/babylon.2.5.js"></script>
+    <script src="assets/js/babylon.stlFileLoader.js"></script>
+    <script src="assets/hand.minified-1.3.7.js"></script>
+    <script src="assets/script.js"></script>
+
+
+
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+    <style>
+        #ex1Slider {
+            width: 98%;
+        }
+
+        #ex1Slider .slider-selection {
+            background: dodgerblue;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Static navbar -->
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar"
+                        aria-expanded="false" aria-controls="navbar">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="#">Robot Studio Web Platform</a>
+            </div>
+            <div id="navbar" class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li class="active"><a href="index.html">Acasa</a></li>
+                    <li><a href="documentatie.html">Documentatie</a></li>
+                </ul>
+                <ul class="nav navbar-nav navbar-right">
+                    <li><a href="autor.html">Autor</a></li>
+                </ul>
+            </div><!--/.nav-collapse -->
+        </div><!--/.container-fluid -->
+    </nav>
+
+    <div class="row">
+        <div class="col-md-4 col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">SELECT ROBOT UNIT</h3>
+                </div>
+                <div class="panel-body">
+                    <div class="row">
+                        <div class="col-md-12 col-xs-12 form-group">
+                            <label for="sel1">Unit ID:</label>
+                            <select class="form-control" id="sel1">
+                                <option>1</option>
+                                <option>2</option>
+                                <option>3</option>
+                                <option>4</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">3D MODEL</h3>
+                </div>
+                <div class="panel-body">
+                    <canvas id="renderCanvas" style="width:100%;height:100%;overflow:hidden;"></canvas>
+                    <script>
+                        window.addEventListener('DOMContentLoaded', function(){
+                            // get the canvas DOM element
+                            var canvas = document.getElementById('renderCanvas');
+
+                            var engine = new BABYLON.Engine(canvas, true);
+                            engine.enableOfflineSupport = false;
+                            var createScene = function () {
+
+                                // This creates a Babylon Scene object (not a shape/mesh)
+                                var scene = new BABYLON.Scene(engine);
+
+                                // This creates and positions an free camera
+                                var camera = new BABYLON.FreeCamera("camera1",
+                                    new BABYLON.Vector3(0, 5, -10), scene);
+
+                                // This targets the camera to scene origin
+                                camera.setTarget(new BABYLON.Vector3.Zero());
+
+                                // This attaches the camera to the canvas
+                                camera.attachControl(canvas, true);
+
+                                // This creates a light - aimed 0,1,0 - to the sky.
+                                var light = new BABYLON.HemisphericLight("light1",
+                                    new BABYLON.Vector3(0, 1, 0), scene);
+
+                                // Dim the light a small amount
+                                light.intensity = .5;
+
+
+                                // Leave this function
+                                return scene;
+                            };
+
+                            // Erstelle Scene
+                            var scene = createScene();
+                            // Lade .STL ein
+
+                            BABYLON.SceneLoader.Load("./assets/", "robot_cel_mai_micc_fixed.stl", engine, function (newScene) {
+
+                                var camera = new BABYLON.ArcRotateCamera("ArcRotateCamera", 0, 0, 0, new BABYLON.Vector3(0,15,0), scene);
+
+
+                                // This targets the camera to scene origin
+
+                                // This attaches the camera to the canvas
+//                                camera.setTarget(new BABYLON.Vector3.Zero());
+                                camera.setPosition(new BABYLON.Vector3(-50, 0, 70));
+                                newScene.clearColor = new BABYLON.Color3(0, 0, 0);
+                                newScene.activeCamera = camera;
+                                newScene.activeCamera.attachControl(canvas, false);
+                                engine.runRenderLoop(function () {
+                                    newScene.render();
+                                });
+                            });
+                        });
+                    </script>
+
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">LIVESTREAM</h3>
+                </div>
+                <div class="panel-body">
+                    <div class="embed-responsive embed-responsive-16by9">
+                        <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/VG9nBoXSRMg"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="row">
+        <div class="col-md-6 col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">CONTROL BOARD</h3>
+                </div>
+                <div class="panel-body">
+                    <div class="row">
+                        <div class="col-md-10 col-xs-10 form-group">
+                            <label for="io_signals_get">I/O Signals:</label>
+                            <select class="form-control" id="io_signals_get">
+                                <option>SELECTEAZA SENSOR</option>
+                                <option>do_cupleaza_V</option>
+                                <option>do_cupleaza_ATI</option>
+                                <option>DI_S2_piesa_pe_masa</option>
+                                <option>DO_deschide_cutie</option>
+                            </select>
+                        </div>
+                        <div class="toggle-anchor col-md-2 col-xs-2 form-group">
+                            <label for="sel1">Status:</label>
+
+                            <input type="checkbox" id="io_signals_set_toggle" checked data-toggle="toggle">
+
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 col-xs-12 form-group">
+                            <label for="sel1">Speed Ratio:</label>
+                            <br>
+                            <input id="panel_speedratio_get" class="span2" data-slider-id='ex1Slider'
+                                   type="text"
+                                   name="somename"
+                                   data-provide="slider"
+                                   data-slider-min="1"
+                                   data-slider-max="100"
+                                   data-slider-step="1"
+                                   data-slider-value="100"
+                                   data-slider-tooltip="show"
+                                   data-slider-handle="round"
+                            >
+
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="row">
+                            <div class="col-xs-6 col-md-6 form-group">
+                                <div class="col-md-6 col-xs-6 form-group">
+                                    <label for="">Controller:</label>
+                                    <input id="panel_ctrlstate_set" type="checkbox" data-toggle="toggle"
+                                           data-on="<i class='fa fa-play'></i> Motors On"
+                                           data-off="<i class='fa fa-power-off'></i> Motors Off">
+
+                                </div>
+                                <div class="col-md-6 col-xs-6 form-group">
+                                    <label for="">&nbsp;</label><br>
+
+                                    <button id="ctrl_restartmode_set" type="button" class="btn btn-default">
+                                        <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span> Restart
+                                    </button>
+
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-xs-6 form-group">
+                                <label for="">Simulation:</label><br>
+                                <div class="btn-group" role="group" aria-label="Default button group">
+                                    <button type="button" id="simulation_start" class="btn btn-default"><i class="fa fa-play"></i> Start
+                                    </button>
+                                    <button type="button" id="simulation_stop" class="btn btn-default"><i class="fa fa-pause"></i> Stop
+                                    </button>
+                                    <button type="button" id="simulation_reset" class="btn btn-default"><i class="fa fa-refresh"></i> Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">CONTROLLER STATUS</h3>
+                </div>
+                <div class="panel-body">
+                    <ul class="col-xs-6 col-md-6 list-group">
+                        <li class="list-group-item"><span class="label label-info" id="do_cupleaza_V">0</span> do_cupleaza_V</li>
+                        <li class="list-group-item"><span class="label label-info" id="do_cupleaza_ATI">0</span> do_cupleaza_ATI</li>
+                        <li class="list-group-item"><span class="label label-info" id="DI_S2_piesa_pe_masa">0</span> DI_S2_piesa_pe_masa</li>
+                        <li class="list-group-item"><span class="label label-info" id="DO_deschide_cutie">0</span> DO_deschide_cutie</li>
+
+                    </ul>
+                    <ul class="col-xs-6 col-md-6 list-group">
+                        <li class="list-group-item"><span class="label label-info" id="DO_S7_piesa_efector_V">0</span> DO_S7_piesa_efector_V</li>
+                        <li class="list-group-item"><span class="label label-info" id="DI_piesa_gata">0</span> DI_piesa_gata</li>
+                        <li class="list-group-item"><span class="label label-info" id="MOTLMP">0</span> MOTLMP</li>
+                        <li class="list-group-item"><span class="label label-info" id="ES1">0</span> ES1</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">DATA VIEW</h3>
+                </div>
+                <div class="panel-body">
+                    <div class="col-md-6 col-xs-12">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                    <div class="col-md-6 col-xs-12">
+                        <canvas id="lineChart"></canvas>
+                    </div>
+
+                    <hr>
+                </div>
+                <script>
+                    $(function () {
+                        var barChartData = {
+                            labels: ["January", "February", "March", "April", "May", "June", "July"],
+                            datasets: [{
+                                label: "Exemplu datasheet",
+                                data: [65, 59, 80, 81, 56, 55, 40],
+                                fill: false,
+                                backgroundColor: ["rgba(255, 99, 132, 0.2)", "rgba(255, 159, 64, 0.2)", "rgba(255, 205, 86, 0.2)", "rgba(75, 192, 192, 0.2)", "rgba(54, 162, 235, 0.2)", "rgba(153, 102, 255, 0.2)", "rgba(201, 203, 207, 0.2)"],
+                                borderColor: ["rgb(255, 99, 132)", "rgb(255, 159, 64)", "rgb(255, 205, 86)", "rgb(75, 192, 192)", "rgb(54, 162, 235)", "rgb(153, 102, 255)", "rgb(201, 203, 207)"],
+                                borderWidth: 1
+                            }]
+                        };
+
+                        var barChartOptions = {
+                            scales: {
+                                yAxes: [
+                                    {
+                                        ticks: {
+                                            beginAtZero: true
+                                        }
+                                    }
+                                ]
+                            }
+                        };
+
+                        new Chart(document.getElementById("barChart"), {
+                            type: "bar",
+                            data: barChartData,
+                            options: barChartOptions
+                        });
+
+                        var lineChartData = {
+                            labels: ["January", "February", "March", "April", "May", "June", "July"],
+                            datasets: [{
+                                label: "Datasheet",
+                                data: [65, 59, 80, 81, 56, 55, 40],
+                                fill: false,
+                                borderColor: "rgb(75, 192, 192)",
+                                lineTension: 0.1
+                            }]
+                        };
+                        var lineChartOptions = {};
+                        new Chart(document.getElementById("lineChart"), {
+                            type: "line",
+                            data: lineChartData,
+                            options: lineChartOptions
+                        });
+                    });
+                </script>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">TIMELINE VIEW</h3>
+                </div>
+                <div class="panel-body">
+                    <div id="container" style="height: 400px; min-width: 310px"></div>
+
+                    <hr>
+                </div>
+                <script>
+                    $(function () {
+                        $.getJSON('./assets/data_array.json', function (data) {
+                            // Create the chart
+                            Highcharts.stockChart('container', {
+                                rangeSelector: {
+                                    selected: 1
+                                },
+
+                                title: {
+                                    text: 'Energy consumption'
+                                },
+
+                                series: [{
+                                    name: 'Total Motor Energy',
+                                    data: data,
+                                    tooltip: {
+                                        valueDecimals: 2
+                                    }
+                                }]
+                            });
+                        });
+                    });
+                </script>
+            </div>
+        </div>
+    </div>
+</div>
+<footer>
+    <div class="footer" id="footer">
+        <br>
+    </div>
+</footer>
+</body>
+</html>

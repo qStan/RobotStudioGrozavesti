@@ -1,0 +1,510 @@
+%%%
+  VERSION:1
+  LANGUAGE:ENGLISH
+%%%
+
+MODULE TCSERVICE(SYSMODULE, NOVIEW)
+!---------------------------------------------------------------------------
+! Module:  TCSERVICE (Tool Changer Service Routines)
+!
+! Description:  This module contains Tool Change service routines
+!
+!---------------------------------------------------------------------------
+
+!---------------------------------------
+! G L O B A L  D A T A
+!--------------------------------------- 
+
+  ! Description: 
+  ! CONST string Version_XXXXXXXX := "1.2.3";
+  !
+  !          XXXXXXXX - Module name
+  !                 1 - version number  (changed of SEROP) 
+  !                 2 - revision number (changed of SEROP)
+  !                 3 - revision number (changed of SEROP)
+  CONST string Version_TCSERVICE := "5.13.Beta";
+
+!----------------------------------------------------
+! M A N U A L  A C T I O N S
+!----------------------------------------------------
+
+  ! Open the tool cover
+  PROC ToolOpenCover()
+
+    VAR string tool_open_cover := "ToolOpenCover";
+    VAR num stand_num := -1;
+    VAR btnres answer;
+
+    WHILE stand_num = -1 DO
+        stand_num := GetStandNum(tool_open_cover, TcTextGet(37), TcTextGet(19));
+        IF stand_num = 0
+            RETURN;
+    ENDWHILE
+
+    answer := UIMessageBox (\Header:= tool_open_cover
+                            \MsgArray := [TcTextGet(40),
+                            " ",
+                            TcTextGet(19) + " " + ValToStr(stand_num)]
+                            \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                            \Icon := iconInfo);
+    TEST answer
+        CASE 1:
+            RETURN;
+        CASE 5:
+        	! Open cover and don't check opened/closed sensors
+            TcOpenCover stand_num \NoCheck;
+        DEFAULT:
+            RETURN;
+    ENDTEST
+
+    RETURN;
+
+  ENDPROC
+
+  ! Close the tool cover
+  PROC ToolCloseCover()
+
+    VAR string tool_open_cover := "ToolCloseCover";
+    VAR num stand_num := -1;
+    VAR btnres answer;
+
+    WHILE stand_num = -1 DO
+        stand_num := GetStandNum(tool_open_cover, TcTextGet(37), TcTextGet(19));
+        IF stand_num = 0
+            RETURN;
+    ENDWHILE
+
+    answer := UIMessageBox (\Header:= tool_open_cover
+                            \MsgArray := [TcTextGet(40),
+                            " ",
+                            TcTextGet(19) + " " + ValToStr(stand_num)]
+                            \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                            \Icon := iconInfo);
+    TEST answer
+        CASE 1:
+            RETURN;
+        CASE 5:
+        	! Close cover and don't check opened/closed sensors
+            TcCloseCover stand_num \NoCheck;
+        DEFAULT:
+            RETURN;
+    ENDTEST
+
+    RETURN;
+
+  ENDPROC
+
+  ! Lock the tool changer
+  PROC ToolLock()
+
+    VAR string tool_lock := "ToolLock";
+    VAR num tool_num := -1;
+    VAR btnres answer;
+
+    WHILE tool_num = -1 DO
+        tool_num := GetToolNum(tool_lock, TcTextGet(38), TcTextGet(39));
+        IF tool_num = 0
+            RETURN;
+    ENDWHILE
+
+    answer := UIMessageBox (\Header:= tool_lock
+                            \MsgArray := [TcTextGet(40),
+                            " ",
+                            TcTextGet(39) + " "+ValToStr(tool_num) +", "+ TcToolData{tool_num}.ToolName]
+                            \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                            \Icon := iconInfo);
+    TEST answer
+        CASE 1:
+            RETURN;
+        CASE 5:
+            TcLockTool tool_num;
+        DEFAULT:
+            RETURN;
+    ENDTEST
+
+    RETURN;
+
+  ENDPROC
+
+  ! Unlock the tool changer
+  PROC ToolUnlock()
+
+    VAR string tool_unlock := "ToolUnlock";
+    VAR num tool_num := -1;
+    VAR btnres answer;
+
+    WHILE tool_num = -1 DO
+        tool_num := GetToolNum(tool_unlock, TcTextGet(38), TcTextGet(39));
+        IF tool_num = 0
+            RETURN;
+    ENDWHILE
+
+    answer := UIMessageBox (\Header:= tool_unlock
+                            \MsgArray := [TcTextGet(40),
+                            " ",
+                            TcTextGet(39) + " "+ValToStr(tool_num) +", "+ TcToolData{tool_num}.ToolName]
+                            \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                            \Icon := iconInfo);
+    TEST answer
+        CASE 1:
+            RETURN;
+        CASE 5:
+            TcUnlockTool tool_num;
+        DEFAULT:
+            RETURN;
+    ENDTEST
+
+    RETURN;
+
+  ENDPROC
+
+  ! Pickup the tool
+  PROC ToolPickup()
+
+    VAR string tool_pickup := "ToolPickup";
+    VAR num tool_num := -1;
+    VAR btnres answer;
+
+    WHILE tool_num = -1 DO
+        tool_num := GetToolNum(tool_pickup, TcTextGet(38), TcTextGet(39));
+        IF tool_num = 0
+            RETURN;
+    ENDWHILE
+
+    answer := UIMessageBox (\Header:= tool_pickup
+                            \MsgArray := [TcTextGet(40),
+                            " ",
+                            TcTextGet(39) + " "+ValToStr(tool_num) +", "+ TcToolData{tool_num}.ToolName]
+                            \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                            \Icon := iconInfo);
+    TEST answer
+        CASE 1:
+            RETURN;
+        CASE 5:
+            answer := UIMessageBox (\Header:= tool_pickup
+                                    \MsgArray := ["Simulate tool stand cover",
+                                    " ",
+                                    TcTextGet(39) + " "+ValToStr(tool_num) +", "+ TcToolData{tool_num}.ToolName]
+                                    \BtnArray := [TcTextGet(44), stEmpty, stEmpty, "Yes", "No"]
+                                    \Icon := iconInfo);
+            IF answer = 4 THEN
+                TcPickupTool tool_num \NoCheck;
+            ELSE
+                TcPickupTool tool_num;
+            ENDIF
+        DEFAULT:
+            RETURN;
+    ENDTEST
+
+    RETURN;
+
+  ENDPROC
+
+  ! Dropoff the tool
+  PROC ToolDropOff()
+
+    VAR string tool_dropoff := "ToolDropOff";
+    VAR num tool_num := -1;
+    VAR btnres answer;
+
+    WHILE tool_num = -1 DO
+        tool_num := GetToolNum(tool_dropoff, TcTextGet(38), TcTextGet(39));
+        IF tool_num = 0
+            RETURN;
+    ENDWHILE
+
+    answer := UIMessageBox (\Header:= tool_dropoff
+                            \MsgArray := [TcTextGet(40),
+                            " ",
+                            TcTextGet(39) + " "+ValToStr(tool_num) +", "+ TcToolData{tool_num}.ToolName]
+                            \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                            \Icon := iconInfo);
+    TEST answer
+        CASE 1:
+            RETURN;
+        CASE 5:
+            answer := UIMessageBox (\Header:= tool_dropoff
+                                    \MsgArray := ["Simulate tool stand cover",
+                                    " ",
+                                    TcTextGet(39) + " "+ValToStr(tool_num) +", "+ TcToolData{tool_num}.ToolName]
+                                    \BtnArray := [TcTextGet(44), stEmpty, stEmpty, "Yes", "No"]
+                                    \Icon := iconInfo);
+            IF answer = 4 THEN
+                TcDropOffTool tool_num \NoCheck;
+            ELSE
+                TcDropOffTool tool_num;
+            ENDIF
+        DEFAULT:
+            RETURN;
+    ENDTEST
+
+    RETURN;
+
+  ENDPROC
+
+  ! Modify tool changer lock position
+  PROC ToolModifyLockPos()
+
+    VAR string modify_lock_pos := "ToolModifyLockPos";
+    VAR num stand_num := -1;
+    VAR btnres answer;
+
+    IF OpMode() <> OP_AUTO THEN
+        WHILE stand_num = -1 DO
+            stand_num := GetStandNum(modify_lock_pos, TcTextGet(47), TcTextGet(19));
+            IF stand_num = 0
+                RETURN;
+        ENDWHILE
+
+        answer := UIMessageBox (\Header:= modify_lock_pos
+                                \MsgArray := [TcTextGet(48)+ValToStr(stand_num),
+                                TcTextGet(49),
+                                " ",
+                                TcTextGet(50)]
+                                \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                                \Icon := iconWarning);
+        TEST answer
+            CASE 1:
+                RETURN;
+            CASE 5:
+                answer := UIMessageBox (\Header:= TcTextGet(46)
+                                        \MsgArray := [TcTextGet(51),
+                                        " ",
+                                        TcTextGet(52),
+                                        " ",
+                                        TcTextGet(53)+ ValToStr(stand_num)]
+                                        \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(54)]
+                                        \Icon := iconWarning);
+                TEST answer
+                    CASE 1:
+                        RETURN;
+                    CASE 5:
+                        ! Store toolstand position no X
+                        TcLockPos{stand_num} := CRobT();
+                        ! Save the tcuser module.
+                        Save "tcuser" \FilePath := "HOME/TCSupport/tcuser.sys";
+                ENDTEST
+            DEFAULT:
+                RETURN;
+        ENDTEST
+
+        answer := UIMessageBox (\Header:= "Modify tool Drop position"
+                                \MsgArray := ["Is the drop position the same as the lock position?",
+                                " ",
+                                "Drop position will set to the same as the lock position if 'Yes' is selected",
+                                " ",
+                                TcTextGet(53)+ ValToStr(stand_num)]
+                                \BtnArray := [TcTextGet(44), stEmpty, stEmpty, "Yes", "No"]
+                                \Icon := iconWarning);
+        TEST answer
+            CASE 5:
+                RETURN;
+            CASE 4:
+                ! Store toolstand position no X
+                TcDropPos{stand_num} := CRobT();
+                ! Save the tcuser module.
+                Save "tcuser" \FilePath := "HOME/TCSupport/tcuser.sys";
+        ENDTEST
+
+    ENDIF
+
+    RETURN;
+
+  ENDPROC
+
+  ! Modify tool changer drop position
+  PROC ToolModifyDropPos()
+
+    VAR string modify_drop_pos := "ToolModifyDropPos";
+    VAR num stand_num := -1;
+    VAR btnres answer;
+
+    IF OpMode() <> OP_AUTO THEN
+        WHILE stand_num = -1 DO
+            stand_num := GetStandNum(modify_drop_pos, TcTextGet(47), TcTextGet(19));
+            IF stand_num = 0
+                RETURN;
+        ENDWHILE
+
+        answer := UIMessageBox (\Header:= modify_drop_pos
+                                \MsgArray := [TcTextGet(48)+ValToStr(stand_num),
+                                TcTextGet(49),
+                                " ",
+                                TcTextGet(50)]
+                                \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                                \Icon := iconWarning);
+        TEST answer
+            CASE 1:
+                RETURN;
+            CASE 5:
+                answer := UIMessageBox (\Header:= TcTextGet(46)
+                                        \MsgArray := [TcTextGet(51),
+                                        " ",
+                                        TcTextGet(52),
+                                        " ",
+                                        TcTextGet(53)+ ValToStr(stand_num)]
+                                        \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(54)]
+                                        \Icon := iconWarning);
+                TEST answer
+                    CASE 1:
+                        RETURN;
+                    CASE 5:
+                        ! Store toolstand position no X
+                        TcDropPos{stand_num} := CRobT();
+                        ! Save the tcuser module.
+                        Save "tcuser" \FilePath := "HOME/TCSupport/tcuser.sys";
+                ENDTEST
+            DEFAULT:
+                RETURN;
+        ENDTEST
+    ENDIF
+
+    RETURN;
+
+  ENDPROC
+
+  ! Modify tool changer home position
+  PROC ToolModifyHomePos()
+
+    VAR string modify_home_pos := "ToolModifyHomePos";
+    VAR num stand_num := -1;
+    VAR btnres answer;
+
+    IF OpMode() <> OP_AUTO THEN
+        WHILE stand_num = -1 DO
+            stand_num := GetStandNum(modify_home_pos, TcTextGet(55), TcTextGet(19));
+            IF stand_num = 0
+                RETURN;
+        ENDWHILE
+
+        answer := UIMessageBox (\Header:= modify_home_pos
+                                \MsgArray := [TcTextGet(56)+ValToStr(stand_num),
+                                TcTextGet(49),
+                                " ",
+                                TcTextGet(50)]
+                                \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                                \Icon := iconWarning);
+        TEST answer
+            CASE 1:
+                RETURN;
+            CASE 5:
+                answer := UIMessageBox (\Header:= TcTextGet(46)
+                                        \MsgArray := [TcTextGet(51),
+                                        " ",
+                                        TcTextGet(52),
+                                        " ",
+                                        TcTextGet(57)+ ValToStr(stand_num)]
+                                        \BtnArray := [TcTextGet(44), stEmpty, stEmpty, stEmpty, TcTextGet(54)]
+                                        \Icon := iconWarning);
+                TEST answer
+                    CASE 1:
+                        RETURN;
+                    CASE 5:
+                        ! Store home position no X
+                        TcHomePos{stand_num} := CJointT();
+                        ! Save the tcuser module.
+                        Save "tcuser" \FilePath := "HOME/TCSupport/tcuser.sys";
+                ENDTEST
+            DEFAULT:
+                RETURN;
+        ENDTEST
+    ENDIF
+
+    RETURN;
+
+  ENDPROC
+
+!----------------------------------------
+! L O C A L   R O U T I N E S
+!----------------------------------------
+
+ ! Get the tool number. The choice is made by the operator.
+ LOCAL FUNC num GetToolNum(string caller, string action_str, string info_str)
+
+    VAR string message{TC_MAX_TOOLS+2};
+    VAR num ret_value;
+    VAR num configurated_tools := 0;
+    VAR num curr_tool_index := 0;
+    VAR btnres answer;
+
+    message{1} := action_str;
+    message{2} := " ";
+    FOR i FROM 1 TO TC_MAX_TOOLS DO
+        IF (TcToolData{i}.Config) THEN
+            message{i+2} := info_str+" "+ValToStr(i) + " - " + TcToolData{i}.ToolName;
+            curr_tool_index := i;
+            configurated_tools := configurated_tools+1;
+        ENDIF
+    ENDFOR
+
+    IF (configurated_tools < 1) THEN
+            answer := UIMessageBox (\Header:= caller
+                                    \MsgArray := [TcTextGet(41),
+                                    " ",
+                                    TcTextGet(26)]
+                                    \BtnArray := [stEmpty, stEmpty, stEmpty, stEmpty, TcTextGet(43)]
+                                    \Icon := iconError);
+        RETURN 0;
+    ENDIF
+
+    IF (curr_tool_index > configurated_tools) THEN
+        IF (configurated_tools > 1) THEN
+            ret_value := UINumEntry (\Header:= caller
+                                     \MsgArray := message
+                                     \Icon := iconInfo
+                                     \InitValue := 0
+                                     \MinValue := 0
+                                     \MaxValue := curr_tool_index
+                                     \AsInteger);
+        ELSE
+            RETURN curr_tool_index;
+        ENDIF
+    ELSE
+        IF (configurated_tools > 1) THEN
+            ret_value := UINumEntry (\Header:= caller
+                                     \MsgArray := message
+                                     \Icon := iconInfo
+                                     \InitValue := 1
+                                     \MinValue := 1
+                                     \MaxValue := curr_tool_index
+                                     \AsInteger);
+        ELSE
+            RETURN curr_tool_index;
+        ENDIF
+    ENDIF
+
+    RETURN ret_value;
+
+ ENDFUNC
+
+ ! Get the tool stand number. The choice is made by the operator.
+ LOCAL FUNC num GetStandNum(string caller, string action_str, string info_str)
+
+    VAR string message{TC_MAX_STANDS+1};
+    VAR num number_of_stands := 0;
+    VAR btnres answer;
+
+    IF TC_MAX_STANDS = 0
+        RETURN number_of_stands;
+
+    message{1} := action_str;
+    FOR i FROM 1 TO TC_MAX_STANDS DO
+        message{i+1} := info_str+" "+ValToStr(i);
+        number_of_stands := i;
+    ENDFOR
+
+    IF (number_of_stands > 1) THEN
+        number_of_stands := UINumEntry (\Header:= caller
+                                 		\MsgArray := message
+                                 		\Icon := iconInfo
+                                 		\InitValue := 1
+                                 		\MinValue := 1
+                                 		\MaxValue := TC_MAX_STANDS
+                                 		\AsInteger);
+    ENDIF
+
+    RETURN number_of_stands;
+
+ ENDFUNC
+
+ENDMODULE

@@ -1,0 +1,154 @@
+%%%
+  VERSION:1
+  LANGUAGE:ENGLISH
+%%%
+
+MODULE TCDEFINE(SYSMODULE, NOSTEPIN)
+!---------------------------------------------------------------------------
+! Module:  TCDEFINE (Tool Changer Definitions)
+!
+! Description:  This module contains tool changer process data
+!               and configuration data.
+!
+!---------------------------------------------------------------------------
+
+  ! Tool information structure
+  RECORD ToolInfo
+    string ToolName;
+    bool Config;
+    bool Servo;
+    num IOUnits;
+    bool Gripper;
+  ENDRECORD
+
+  ! Error information structure
+  RECORD ErrorInfo
+    string device_mod;
+    string routine;
+    string error_type;
+    string description;
+    string error_info;
+    string action;
+  ENDRECORD
+
+  ! Alias num for the tool used in the tool change routines
+  ALIAS num toolno;
+
+  ! Alias num for the tool used in the tool change routines
+  ALIAS num standno;
+
+!---------------------------------------
+! G L O B A L  D A T A
+!--------------------------------------- 
+
+  ! Description: 
+  ! CONST string Version_XXXXXXXX := "1.2.3";
+  !
+  !          XXXXXXXX - Module name
+  !                 1 - version number  (changed of SEROP) 
+  !                 2 - revision number (changed of SEROP)
+  !                 3 - revision number (changed of SEROP)
+  CONST string Version_TCDEFINE := "5.11.0";
+
+  CONST num TC_MAX_TOOLS    := 4;   ! Max number of tools
+  CONST num TC_MAX_STANDS   := 4;   ! Max number of tools and stands
+  CONST num TC_MAX_IOUNIT   := 4;   ! Max number of I/O units
+
+  ! Name of the Device module if different toolchanger systems are used in eg. a multimove system.
+  ! E.g. TC_DEVICE_XXX, TCDEVICE_YYY etc.
+  CONST string DEVICE_MOD_NAME{TC_MAX_STANDS} := ["TCDEVICE", "TCDEVICE", "TCDEVICE", "TCDEVICE"];
+
+  ! Tool Configuration data:
+  ! The boolean 'Config' needs to be TRUE for tool to be configured,
+  ! if FALSE, stand position will not be used.
+  !
+  ! If a servo tool is used the string 'ToolName' must have the same name as
+  ! the mechanical unit, e.g. TcToolData{1}.ToolName = "SERVOTOOL1";
+  ! The boolean 'Servo' needs to be TRUE if tool is a servo tool,
+  ! if FALSE the tool will be considered to be a pneumatic tool.
+  !
+  ! If no I/O units are used, set 'IOUnits' to 0.
+  ! Max number of configurable I/O units per tool is 4.
+  ! If more are needed increase the 'TcIOUnits' array accordingly.
+  CONST ToolInfo TcToolData{TC_MAX_STANDS} := [["Tool1Name", FALSE, FALSE, 0, FALSE],
+                                              ["Tool2Name", FALSE, FALSE, 0, FALSE],
+                                              ["Tool3Name", FALSE, FALSE, 0, FALSE],
+                                              ["Tool4Name", FALSE, FALSE, 0, FALSE]];
+
+  ! I/O unit configuration data:
+  ! Set the name(s) to the corresponding I/O unit name. 
+  CONST string TcIOUnits{TC_MAX_STANDS, TC_MAX_IOUNIT} := [["Tool1Unit1", "Tool1Unit2", "Tool1Unit3", "Tool1Unit4"],
+                                                          ["Tool2Unit1", "Tool2Unit2", "Tool2Unit3", "Tool2Unit4"],
+                                                          ["Tool3Unit1", "Tool3Unit2", "Tool3Unit3", "Tool3Unit4"],
+                                                          ["Tool4Unit1", "Tool4Unit2", "Tool4Unit3", "Tool4Unit4"]];
+
+  ! Error information structure, used in error handling from the TCDEVICE module(s)
+  PERS ErrorInfo TcErrInfo{TC_MAX_STANDS} := [["", "", "", "", "", ""],
+                                              ["", "", "", "", "", ""],
+                                              ["", "", "", "", "", ""],
+                                              ["", "", "", "", "", ""]];
+
+  ! User error recovery, 
+  ! TRUE - Errors are raised to user level from the TCBASE module, no internal error handling and elog message is done.
+  ! FALSE - Error handling is done inside the tool change routines in the TCBASE module.
+  PERS bool TcUserRecover := FALSE;
+
+  ! Active tool when the tool change routines are used.
+  PERS toolno toolno1 := 1;
+  PERS toolno toolno2 := 2;
+  PERS toolno toolno3 := 3;
+  PERS toolno toolno4 := 4;
+
+  ! Active tool when the tool change routines are used.
+  PERS standno standpos1 := 1;
+  PERS standno standpos2 := 2;
+  PERS standno standpos3 := 3;
+  PERS standno standpos4 := 4;
+
+  ! Constants
+  ! Return codes
+  CONST num TC_NOK         := -1;
+  CONST num TC_OK          := 0;    ! Status OK from the TC device routines
+  CONST num TC_RETRY       := 1;
+  CONST num TC_ABORT       := 2;
+  CONST num TC_GOTO_POS    := 3;
+
+  ! Error codes used for error handling in the TCBASE module
+  CONST errnum TC_ERR_TOOLNUM      := 1;    ! Error if invalid tool number
+  CONST errnum TC_ERR_OPEN_COV     := 2;    ! Error if open cover timeout
+  CONST errnum TC_ERR_CLOSE_COV    := 3;    ! Error if close cover timeout
+  CONST errnum TC_ERR_NOTOOL       := 4;    ! Error if pickup and tool is not present
+  CONST errnum TC_ERR_TOOL         := 5;    ! Error if dropoff and tool is present
+  CONST errnum TC_ERR_LOCK         := 6;    ! Error if lock timeout
+  CONST errnum TC_ERR_UNLOCK       := 7;    ! Error if unlock timeout
+  CONST errnum TC_ERR_PULOCK       := 8;    ! Error if pickup while locked
+  CONST errnum TC_ERR_DOUNLOCK     := 9;    ! Error if dropoff while locked
+  CONST errnum TC_ERR_TOOLCFG      := 10;   ! Error if tool is not configured
+  CONST errnum TC_ERR_IOCFG        := 11;   ! Error if invalid I/O unit
+  CONST errnum TC_ERR_IO           := 12;   ! Error if failed IOEnable/IODisable
+  CONST errnum TC_ERR_POWER        := 13;   ! Error if no power on IO unit
+  CONST errnum TC_ERR_AIR          := 14;   ! Error if no air supply
+  CONST errnum TC_ERR_SERVO_TOOL   := 15;   ! Error if servo tool not configured in system
+  CONST errnum TC_ERR_ROBPOS       := 16;   ! Error if robot is not in position to unlock tool
+  CONST errnum TC_ERR_STANDNUM     := 17;    ! Error if invalid stand number
+  CONST errnum TC_ERR_ROBPOS_PICK  := 18;   ! Error if robot is not in position to pickup tool
+  CONST errnum TC_ERR_ROBPOS_DROP  := 19;   ! Error if robot is not in position to dropoff tool
+
+!----------------------------------------
+! G L O B A L   R O U T I N E S  
+!----------------------------------------
+
+  ! Get text string from tctext.xml.
+  FUNC string TcTextGet(num Index)
+
+    VAR string ret_str := "";
+    VAR num txt_res_no;
+
+    txt_res_no := TextTabGet("tctext");
+    ret_str := TextGet(txt_res_no, Index);
+
+    RETURN ret_str;
+
+  ENDFUNC
+
+ENDMODULE

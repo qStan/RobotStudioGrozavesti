@@ -1,0 +1,38 @@
+HEADERSTART	1.1             17-05-20  01:58:22 (1)
+T_ROB1      Home                                              
+HEADEREND
+
+T_ROB1      MoveJ Target_750,v500,z100,Flansa_Cuplare\WObj:=W  76339:WAIT  :76339
+T_ROB1      MoveJ Target_750,v500,z100,Flansa_Cuplare\WObj:=W  78379:READY :78379
+T_ROB1      WaitDI DI_S2_piesa_pe_masa,1;                      78379:WAIT  :78379
+T_ROB1      WaitDI DI_S2_piesa_pe_masa,1;                      78379:READY :78379
+T_ROB1      Path1_Preluare_piesa;                              78379:READY :78379
+T_ROB1      MoveJ Target_20_2,v400,z100,Tooldata_TCP_VAC\WObj  78379:WAIT  :78379
+T_ROB1      MoveJ Target_20_2,v400,z100,Tooldata_TCP_VAC\WObj  81307:READY :81307
+T_ROB1      MoveJ Target_10,v400,z100,Tooldata_TCP_VAC\WObj:=  81307:WAIT  :81307
+T_ROB1      MoveJ Target_10,v400,z100,Tooldata_TCP_VAC\WObj:=  82483:READY :82483
+T_ROB1      WaitTime\InPos,0.5;                                82483:WAIT  :82483
+T_ROB1      WaitTime\InPos,0.5;                                83463:WAIT  :83463
+T_ROB1      WaitTime\InPos,0.5;                                83963:READY :83963
+T_ROB1      SetDO\SDelay:=1,DO_S7_piesa_efector_V,1;           83963:READY :83963
+T_ROB1      WaitTime\InPos,1;                                  83963:WAIT  :83963
+T_ROB1      WaitTime\InPos,1;                                  83983:WAIT  :83983
+T_ROB1      WaitTime\InPos,1;                                  84983:READY :84983
+T_ROB1      MoveJ Target_20,v400,z100,Tooldata_TCP_VAC\WObj:=  84983:WAIT  :84983
+T_ROB1      MoveJ Target_20,v400,z100,Tooldata_TCP_VAC\WObj:=  85271:READY :85271
+T_ROB1      MoveJ Target_20_2_3,v400,z100,Tooldata_TCP_VAC\WO  85271:WAIT  :85271
+T_ROB1      MoveJ Target_20_2_3,v400,z100,Tooldata_TCP_VAC\WO  86207:READY :86207
+T_ROB1      MoveJ Target_30,v400,z100,Tooldata_TCP_VAC\WObj:=  86207:WAIT  :86207
+T_ROB1      MoveJ Target_30,v400,z100,Tooldata_TCP_VAC\WObj:=  90095:READY :90095
+T_ROB1      MoveJ Target_30_3,v400,z100,Tooldata_TCP_VAC\WObj  90095:WAIT  :90095
+T_ROB1      MoveJ Target_30_3,v400,z100,Tooldata_TCP_VAC\WObj  91271:READY :91271
+T_ROB1      WaitTime\InPos,0.5;                                91271:WAIT  :91271
+T_ROB1      WaitTime\InPos,0.5;                                92399:WAIT  :92399
+T_ROB1      WaitTime\InPos,0.5;                                92899:READY :92899
+T_ROB1      SetDO\SDelay:=1,DO_S7_piesa_efector_V,0;           92899:READY :92899
+T_ROB1      WaitTime\InPos,1;                                  92899:WAIT  :92899
+T_ROB1      WaitTime\InPos,1;                                  92923:WAIT  :92923
+T_ROB1      WaitTime\InPos,1;                                  93923:READY :93923
+T_ROB1      MoveJ Target_30,v400,z100,Tooldata_TCP_VAC\WObj:=  93923:WAIT  :93923
+T_ROB1      MoveJ Target_30,v400,z100,Tooldata_TCP_VAC\WObj:=  94475:READY :94475
+T_ROB1      MoveJ Target_70,v400,z100,Tooldata_TCP_VAC\WObj:=  94475:WAIT  :94475

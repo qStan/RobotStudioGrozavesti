@@ -1,0 +1,46 @@
+#
+# Generated backup file, do not edit.
+#
+# Originally at: C:\Users\Batman\AppData\Local\Temp\iit3xi2z.luu\Backups\Controller_Grozavesti
+# 17-06-28  02:24:14
+#
+>>SYSTEM_ID:
+VIRTUAL_USE
+
+>>PRODUCTS_ID:
+RobotWare Version: 6.02.0106
+
+  RobotWare Base
+  English
+  616-1 PC Interface
+  617-1 FlexPendant Interface
+  614-1 FTP and NFS client
+  688-1 RobotStudio App Connect
+  623-1 Multitasking
+  1341-1/1520-1 Integrated Vision Interface
+  Drive System IRB 460/640/660/760/4600/66xx/6700
+  IRB 4600-40/2.55
+  87-1 Cooling fan axis 1 motor
+  88-1 Cooling fan axis 2 motor
+
+>>HOME:
+All public files and directories
+
+>>SYSPAR:
+SYS.cfg
+PROC.cfg
+MMC.cfg
+EIO.cfg
+SIO.cfg
+MOC.cfg
+
+
+>>TASK1: (T_ROB1,Grozavesti,)
+SYSMOD\user.sys @ user.sys
+PROGMOD\MainModule.mod @ mainmodule.mod
+SYSMOD\LINKEDM.sys @ linkedm.sys
+PROGMOD\Module1.mod @ module1.mod
+PROGMOD\CalibData.mod @ calibdata.mod
+
+
+>>EOF:

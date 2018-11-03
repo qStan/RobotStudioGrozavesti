@@ -1,0 +1,1015 @@
+%%%
+  VERSION: 1
+  LANGUAGE: ENGLISH
+%%%
+
+MODULE TCBASE (SYSMODULE)
+!---------------------------------------------------------------------------
+! Module:  TCBASE (Tool Changer Base module)
+!
+! Description:  This module contains the tool change base instructions.
+!               These instructions will call equipment routines in the
+!               Tool Change Device Module.
+!               The error handling is encapsulated in all tool change base
+!               instructions.
+!
+!---------------------------------------------------------------------------
+
+!---------------------------------------
+! G L O B A L  D A T A
+!--------------------------------------- 
+
+  ! Description: 
+  ! CONST string Version_XXXXXXXX := "1.2.3";
+  !
+  !          XXXXXXXX - Module name
+  !                 1 - version number  (changed of SEROP) 
+  !                 2 - revision number (changed of SEROP)
+  !                 3 - revision number (changed of SEROP)
+  CONST string Version_TCBASE := "5.12.0";
+
+!---------------------------------------
+! L O C A L  D A T A
+!--------------------------------------- 
+
+  ! Declaration of work zone data
+  LOCAL CONST num TcWzRadius := 6;
+
+  ! Declaration of undefined position
+  LOCAL CONST robtarget TcUndefPos := [[1676.2,-0.02,2006.62],
+                                      [0,0,0,0],
+                                      [-1,0,0,0],
+                                      [9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+
+  ! Declaration of temporary work zone data
+  LOCAL VAR wztemporary TcTmpPos;
+
+  ! Signal (DO) to check if robot is in tool change lock position
+  LOCAL VAR signaldo do_tc_lock_pos;
+
+  ! Signal (DO) to check if robot is in tool change drop position
+  LOCAL VAR signaldo do_tc_drop_pos;
+
+  ! Signal (DI) to break error dialog on FP
+  LOCAL VAR signaldi di_tc_break_dialog;
+
+  ! Signal (DI) to break error dialog on FP and to perform a "Abort"
+  LOCAL VAR signaldi di_tc_abort;
+
+  ! Signal (DO) to break error dialog on FP and to perform a "Retry"
+  LOCAL VAR signaldi di_tc_retry;
+
+!-------------------------------------------
+! I O   D E F I N I T I O N   R O U T I N E
+!-------------------------------------------
+
+  ! Init signals
+  LOCAL PROC TcInitIO()
+
+    AliasIO doTC_LockPos, do_tc_lock_pos;
+    AliasIO doTC_DropPos, do_tc_drop_pos;
+    AliasIO diBreakDialog, di_tc_break_dialog;
+    AliasIO diAbortProc, di_tc_abort;
+    AliasIO diRetryProc, di_tc_retry;
+
+  ENDPROC
+
+!----------------------------------------
+! L O C A L   U S E R   R O U T I N E S
+!----------------------------------------
+
+  ! Perform optional actions if "Retry" is pressed on the TPU
+  ! or if "diRetryProc" is pulsed
+  LOCAL PROC TcRetryCycle(num ToolNum, num ErrStatus)
+
+    ! Add code here
+
+  ENDPROC
+
+  ! Perform optional actions if "Abort" is pressed on the TPU
+  ! of if "diAbortProc" is pulsed
+  LOCAL PROC TcAbortCycle(num ToolNum, num ErrStatus)
+
+    ! Add code here
+    TEST ErrStatus
+        CASE TC_ERR_ROBPOS_PICK:
+            ! Move back to tool change empty position and stop
+            MoveRobToTcEmptyPos ToolNum;
+            Stop;
+        CASE TC_ERR_ROBPOS_DROP:
+            ! Move back to tool change ready position and stop
+            MoveRobToTcReadyPos ToolNum;
+            Stop;
+        DEFAULT:
+    ENDTEST
+
+  ENDPROC
+
+!----------------------------------------
+!  S H E L F   R O U T I N E S
+!----------------------------------------
+
+  ! Called if the system is restarted, warmstart.
+  PROC TcPowerOn()
+
+    %"TCDEVICE"+":TcPowerOn"%;
+
+  ENDPROC
+
+  ! Called if the program is started from the beginning, main.
+  PROC TcStart()
+
+    %"TCDEVICE"+":TcStart"%;
+
+  ENDPROC
+
+  ! Called if the program is restarted after a program stop.
+  PROC TcRestart()
+
+    %"TCDEVICE"+":TcRestart"%;
+
+  ENDPROC
+
+  ! Called if the program is stopped.
+  PROC TcStop()
+
+    %"TCDEVICE"+":TcStop"%;
+
+  ENDPROC
+
+  ! Called if the e-stop is activated.
+  PROC TcQStop()
+
+    %"TCDEVICE"+":TcQStop"%;
+
+  ENDPROC
+
+!-----------------------------------------
+! T O O L   C H A N G E   R O U T I N E S
+!-----------------------------------------
+
+  ! Pickup tool
+  ! If the parameter TimeOut is not used the default timeout will be 5 seconds
+  ! If the switch NoCover is used, the opening/closing of toolstand covers will be skipped
+  ! If the switch NoCheck is used, the tool present check in the toolstand will be skipped
+  ! Sequence:
+  ! The tool will be checked, present in stand, already on robot and if changer is locked
+  ! The robot will move to Home position
+  ! The cover will be opened
+  ! The robot will move to empty position
+  ! The robot will move to lock position
+  ! The tool changer will be locked
+  ! The robot will move to ready position
+  ! The tool will be checked, present in stand and if changer is locked
+  ! The robot will move to Home position
+  ! The cover will be closed
+  PROC TcPickupTool(toolno ToolNum \num TimeOut \switch NoCover \switch NoCheck)
+
+    VAR num status := TC_NOK;
+    VAR num err_action;
+    VAR bool retry_cycle := TRUE;
+
+    IF (ToolNum <= 0 OR ToolNum > TC_MAX_TOOLS)
+        RAISE TC_ERR_TOOLNUM;
+
+    IF NOT (TcToolData{ToolNum}.Config)
+        RAISE TC_ERR_TOOLCFG;
+
+    IF NOT (TcIsServoToolConfig(ToolNum))
+        RAISE TC_ERR_SERVO_TOOL;
+
+    IF (TcToolData{ToolNum}.IOUnits > TC_MAX_IOUNIT)
+        RAISE TC_ERR_IOCFG;
+
+    FOR i FROM 1 TO TC_MAX_TOOLS DO
+        IF (TcChkToolOnRobot(i)) THEN
+            IF (ToolNum <> i) THEN
+                TcDropOffTool i \TimeOut?TimeOut \NoCover?NoCover \NoCheck?NoCheck;
+            ENDIF
+        ENDIF
+    ENDFOR
+
+    WHILE (status <> TC_OK) DO
+        ! Check if tool is present in stand and that changer is unlocked
+        %DEVICE_MOD_NAME{ToolNum}+":TcChkToolAtStand"% status, ToolNum \NoCheck?NoCheck;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcChkToolAtStand
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change Home position
+    GoToTcHomePos ToolNum;
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Open the cover
+        %DEVICE_MOD_NAME{ToolNum}+":TcOpenCover"% status, ToolNum \TimeOut?TimeOut \NoCover?NoCover;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcOpenCover
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change empty position
+    MoveRobToTcEmptyPos ToolNum;
+
+    ! Move to tool change lock position
+    MoveRobToTcLockPos ToolNum, "TcPickupTool";
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Lock the tool and check that tool is locked on changer
+        %DEVICE_MOD_NAME{ToolNum}+":TcLockTool"% status, ToolNum \TimeOut?TimeOut;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcLockTool
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change ready position
+    MoveRobToTcReadyPos ToolNum;
+    WaitTime \InPos, 0;
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Check that tool is mounted on robot and changer is locked
+        %DEVICE_MOD_NAME{ToolNum}+":TcChkNoToolAtStand"% status, ToolNum \NoCheck?NoCheck;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcChkNoToolAtStand
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change Home position
+    GoToTcHomePos ToolNum;
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Close the cover
+        %DEVICE_MOD_NAME{ToolNum}+":TcCloseCover"% status, ToolNum \TimeOut?TimeOut \NoCover?NoCover;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcCloseCover
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    %"AddMoveHook"% ToolNum;
+
+  ERROR
+    IF (ERRNO = ERR_CALLPROC OR ERRNO = ERR_REFUNKPRC) THEN
+        SkipWarn;
+        TRYNEXT;
+    ENDIF
+    IF ERRNO = TC_ERR_TOOLNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(ToolNum), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_TOOLS);
+    ENDIF
+    IF ERRNO = TC_ERR_TOOLCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(17), ValToStr(ToolNum), TcTextGet(26);
+    ENDIF
+    IF ERRNO = TC_ERR_SERVO_TOOL THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(31), ValToStr(ToolNum), TcTextGet(32);
+    ENDIF
+    IF ERRNO = TC_ERR_IOCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(33), TcTextGet(42)+" "+ValToStr(TcToolData{ToolNum}.IOUnits), TcTextGet(28);
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Drop off tool
+  ! If the parameter TimeOut is not used the default timeout will be 5 seconds
+  ! If the switch NoCover is used, the opening/closing of toolstand covers will be skipped
+  ! If the switch NoCheck is used, the tool present check in the toolstand will be skipped
+  ! Sequence:
+  ! The tool will be checked, present in stand and if changer is locked
+  ! The robot will move to Home position
+  ! The cover will be opened
+  ! The robot will move to ready position
+  ! The robot will move to lock position
+  ! The tool changer will be unlocked
+  ! The robot will move to empty position
+  ! The tool will be checked, present in stand, already on robot and if changer is locked
+  ! The robot will move to Home position
+  ! The cover will be closed
+  PROC TcDropOffTool(toolno ToolNum \num TimeOut \switch NoCover \switch NoCheck)
+
+    VAR num err_action;
+    VAR num status := TC_NOK;
+
+    IF (ToolNum <= 0 OR ToolNum > TC_MAX_TOOLS)
+        RAISE TC_ERR_TOOLNUM;
+
+    IF NOT (TcToolData{ToolNum}.Config)
+        RAISE TC_ERR_TOOLCFG;
+
+    IF NOT (TcIsServoToolConfig(ToolNum))
+        RAISE TC_ERR_SERVO_TOOL;
+
+    IF (TcToolData{ToolNum}.IOUnits > TC_MAX_IOUNIT)
+        RAISE TC_ERR_IOCFG;
+
+    WHILE (status <> TC_OK) DO
+        ! Check that no tool is present in stand and changer locked
+        %DEVICE_MOD_NAME{ToolNum}+":TcChkNoToolAtStand"% status, ToolNum \NoCheck?NoCheck;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcChkNoToolAtStand
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! The robot will move to Home position
+    GoToTcHomePos ToolNum;
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Open the cover
+        %DEVICE_MOD_NAME{ToolNum}+":TcOpenCover"% status, ToolNum \TimeOut?TimeOut \NoCover?NoCover;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcOpenCover
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change ready position
+    MoveRobToTcReadyPos ToolNum;
+
+    ! Move to tool change drop position
+    MoveRobToTcDropPos ToolNum, "TcDropOffTool";
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Unlock the tool and check that changer is unlocked
+        %DEVICE_MOD_NAME{ToolNum}+":TcUnlockTool"% status, ToolNum \TimeOut?TimeOut \NoCheck?NoCheck;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcUnlockTool
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change ready position
+    MoveRobToTcReadyPos ToolNum;
+    WaitTime \InPos, 0;
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Check that tool is present in stand and changer is unlocked
+        %DEVICE_MOD_NAME{ToolNum}+":TcChkToolAtStand"% status, ToolNum \NoCheck?NoCheck;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcChkToolAtStand
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+    ! Move to tool change empty position
+    MoveRobToTcEmptyPos ToolNum;
+
+    ! The robot will move to Home position
+    GoToTcHomePos ToolNum;
+
+    status := TC_NOK;
+    WHILE (status <> TC_OK) DO
+        ! Close the cover
+        %DEVICE_MOD_NAME{ToolNum}+":TcCloseCover"% status, ToolNum \TimeOut?TimeOut \NoCover?NoCover;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcCloseCover
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+  ERROR
+    IF ERRNO = TC_ERR_TOOLNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(ToolNum), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_STANDS);
+    ENDIF
+    IF ERRNO = TC_ERR_TOOLCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(17), ValToStr(ToolNum), TcTextGet(26);
+    ENDIF
+    IF ERRNO = TC_ERR_SERVO_TOOL THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(31), ValToStr(ToolNum), TcTextGet(32);
+    ENDIF
+    IF ERRNO = TC_ERR_IOCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(33), TcTextGet(42)+" "+ValToStr(TcToolData{ToolNum}.IOUnits), TcTextGet(28);
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+!----------------------------------------
+! S E R V I C E   R O U T I N E S
+!----------------------------------------
+
+  ! Open cover on stand
+  ! If the parameter TimeOut is not used the default timeout will be 5 seconds
+  ! If the switch NoCheck is used, no supervision will be done on the toolstand I/O
+  ! If the switch NoCover is used, the opening/closing of toolstand covers will be skipped
+  PROC TcOpenCover(standno StandPos \num TimeOut \switch NoCheck \switch NoCover)
+
+    VAR num err_action;
+    VAR num status := TC_NOK;
+
+    IF (StandPos <= 0 OR StandPos > TC_MAX_STANDS)
+        RAISE TC_ERR_STANDNUM;
+
+    WHILE (status <> TC_OK) DO
+        ! Open the cover
+        %"TCDEVICE"+":TcOpenCover"% status, StandPos \TimeOut?TimeOut \NoCheck?NoCheck \NoCover?NoCover;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(StandPos);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle StandPos, status;
+                ! Retry TcOpenCover
+            CASE TC_ABORT:
+                TcAbortCycle StandPos, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+  ERROR
+    IF ERRNO = TC_ERR_STANDNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(StandPos), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_STANDS);
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Close cover on stand
+  ! If the parameter TimeOut is not used the default timeout will be 5 seconds
+  ! If the switch NoCheck is used, no supervision will be done on the toolstand I/O
+  ! If the switch NoCover is used, the opening/closing of toolstand covers will be skipped
+  PROC TcCloseCover(standno StandPos \num TimeOut \switch NoCheck \switch NoCover)
+
+    VAR num err_action;
+    VAR num status := TC_NOK;
+
+    IF (StandPos <= 0 OR StandPos > TC_MAX_STANDS)
+        RAISE TC_ERR_STANDNUM;
+
+    WHILE (status <> TC_OK) DO
+        ! Close the cover
+        %"TCDEVICE"+":TcCloseCover"% status, StandPos \TimeOut?TimeOut \NoCheck?NoCheck \NoCover?NoCover;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(StandPos);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle StandPos, status;
+                ! Retry TcCloseCover
+            CASE TC_ABORT:
+                TcAbortCycle StandPos, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+  ERROR
+    IF ERRNO = TC_ERR_STANDNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(StandPos), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_STANDS);
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Lock tool to tool changer
+  ! If the parameter TimeOut is not used the default timeout will be 5 seconds
+  ! If the switch NoIO is used the configured I/O:s will be left disabled
+  PROC TcLockTool(toolno ToolNum \num TimeOut \switch NoIO)
+
+    VAR num err_action;
+    VAR num status:= TC_NOK;
+
+    IF (ToolNum <= 0 OR ToolNum > TC_MAX_STANDS)
+        RAISE TC_ERR_TOOLNUM;
+
+    IF NOT (TcToolData{ToolNum}.Config)
+        RAISE TC_ERR_TOOLCFG;
+
+    IF NOT (TcIsServoToolConfig(ToolNum))
+        RAISE TC_ERR_SERVO_TOOL;
+
+    IF (TcToolData{ToolNum}.IOUnits > TC_MAX_IOUNIT)
+        RAISE TC_ERR_IOCFG;
+
+    WHILE (status <> TC_OK) DO
+        ! Lock the tool
+        %"TCDEVICE"+":TcLockTool"% status, ToolNum \TimeOut?TimeOut \NoIO?NoIO;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcLockTool
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+  ERROR
+    IF ERRNO = TC_ERR_TOOLNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(ToolNum), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_TOOLS);
+    ENDIF
+    IF ERRNO = TC_ERR_TOOLCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(17), ValToStr(ToolNum), TcTextGet(26);
+    ENDIF
+    IF ERRNO = TC_ERR_SERVO_TOOL THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(31), ValToStr(ToolNum), TcTextGet(32);
+    ENDIF
+    IF ERRNO = TC_ERR_IOCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(33), TcTextGet(42)+" "+ValToStr(TcToolData{ToolNum}.IOUnits), TcTextGet(28);
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Unlock tool from tool changer
+  ! If the parameter TimeOut is not used the default timeout will be 5 seconds
+  PROC TcUnlockTool(toolno ToolNum \num TimeOut)
+
+    VAR num err_action;
+    VAR num status := TC_NOK;
+
+    IF (ToolNum <= 0 OR ToolNum > TC_MAX_STANDS)
+        RAISE TC_ERR_TOOLNUM;
+
+    IF NOT (TcToolData{ToolNum}.Config)
+        RAISE TC_ERR_TOOLCFG;
+
+    IF NOT (TcIsServoToolConfig(ToolNum))
+        RAISE TC_ERR_SERVO_TOOL;
+
+    IF (TcToolData{ToolNum}.IOUnits > TC_MAX_IOUNIT)
+        RAISE TC_ERR_IOCFG;
+
+    WHILE (status <> TC_OK) DO
+        ! Unlock the tool
+        %DEVICE_MOD_NAME{ToolNum}+":TcUnlockTool"% status, ToolNum \TimeOut?TimeOut;
+
+        IF (TcUserRecover AND status <> TC_OK)
+            RAISE status;
+
+        IF (status <> TC_OK) THEN
+            err_action := TcShowErrDialog(ToolNum);
+
+            TEST err_action
+            CASE TC_RETRY:
+                TcRetryCycle ToolNum, status;
+                ! Retry TcUnlockTool
+            CASE TC_ABORT:
+                TcAbortCycle ToolNum, status;
+                RETURN;
+            DEFAULT:
+            ENDTEST
+        ENDIF
+    ENDWHILE
+
+  ERROR
+    IF ERRNO = TC_ERR_TOOLNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(ToolNum), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_TOOLS);
+    ENDIF
+    IF ERRNO = TC_ERR_TOOLCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(17), ValToStr(ToolNum), TcTextGet(26);
+    ENDIF
+    IF ERRNO = TC_ERR_SERVO_TOOL THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(31), ValToStr(ToolNum), TcTextGet(32);
+    ENDIF
+    IF ERRNO = TC_ERR_IOCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(33), TcTextGet(42)+" "+ValToStr(TcToolData{ToolNum}.IOUnits), TcTextGet(28);
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Check that tool is mounted on robot and is not present in stand
+  ! TRUE = Tool is not present in stand
+  ! FALSE = Tool is present in stand
+  FUNC bool TcChkToolOnRobot(toolno ToolNum)
+
+    VAR num status;
+
+    IF (ToolNum <= 0 OR ToolNum > TC_MAX_TOOLS)
+        RAISE TC_ERR_TOOLNUM;
+
+!    IF NOT (TcToolData{ToolNum}.Config)
+!        RAISE TC_ERR_TOOLCFG;
+
+    ! Check if tool is mounted on robot
+    %DEVICE_MOD_NAME{ToolNum}+":TcChkToolOnRobot"% status, ToolNum;
+
+    IF (status = TC_OK) THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    ENDIF
+
+  ERROR
+    IF ERRNO = TC_ERR_TOOLNUM THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(8), ValToStr(ToolNum), TcTextGet(22)+" "+ValToStr(1)+" - "+ValToStr(TC_MAX_TOOLS);
+    ENDIF
+    IF ERRNO = TC_ERR_TOOLCFG THEN
+        EventLog PROCESS_ERR, 760, TYPE_ERR, ERRSTR_TASK, ERRSTR_CONTEXT, TcTextGet(17), ValToStr(ToolNum), TcTextGet(26);
+    ENDIF
+    RAISE;
+
+  ENDFUNC
+
+!---------------------------------------------------------
+! L O C A L   R O U T I N E S   A N D   F U N C T I O N S
+!---------------------------------------------------------
+
+  ! Move to empty position with empty tool changer, no tool
+  LOCAL PROC MoveRobToTcEmptyPos(num ToolPos)
+
+    IF TcLockPos{ToolPos} <> TcUndefPos THEN
+        GoToTcEmptyPos ToolPos;
+        WaitTime \InPos, 0;
+    ENDIF
+
+  ENDPROC
+
+  ! Define zone and move to lock position, an ouput will be set when entering the zone
+  LOCAL PROC MoveRobToTcLockPos(num ToolPos, string Caller)
+
+    VAR string message{5};
+    VAR num err_action := TC_NOK;
+    VAR shapedata ShapeDat;
+    VAR num break_signal;
+
+    ! Init IO signals
+    TcInitIO;
+
+    message{1} := TcTextGet(4);
+    message{2} := " ";
+    message{4} := " ";
+
+    ! Initialize a temporary work zone
+    SetDO do_tc_lock_pos, 0;
+
+!    WZSphDef \Inside, ShapeDat, TcLockPos{ToolPos}.trans, TcWzRadius;
+!    WZDOSet \Temp, TcTmpPos \Inside, ShapeDat, do_tc_lock_pos, 1;
+    IF TcLockPos{ToolPos} <> TcUndefPos THEN
+        GoToTcLockPos ToolPos;
+    ENDIF
+
+    ! Wait for Inpos
+    WaitTime \InPos, 0;
+
+    WHILE (DOutput(do_tc_lock_pos) = 0) AND (err_action <> TC_ABORT) DO
+        err_action := UIMessageBox (\Header:= Caller
+                                    \MsgArray := message
+                                    \BtnArray := [stEmpty, stEmpty, stEmpty, TcTextGet(2), TcTextGet(3)]
+                                    \Icon := iconError
+                                    \DIBreak := di_tc_break_dialog
+                                    \BreakFlag := break_signal);
+
+        IF (DInput(di_tc_abort) = 1 AND break_signal = ERR_TP_DIBREAK) THEN
+            err_action := 4;
+        ELSEIF (DInput(di_tc_retry) = 1 AND break_signal = ERR_TP_DIBREAK) THEN
+            err_action := 5;
+        ENDIF
+
+        TEST err_action
+        CASE 4:
+            err_action := TC_ABORT;
+        CASE 5:
+            err_action := TC_GOTO_POS;
+        ENDTEST
+
+        IF (err_action = TC_GOTO_POS) THEN
+            IF TcLockPos{ToolPos} <> TcUndefPos THEN
+                GoToTcLockPos ToolPos;
+            ELSE
+                message{3} := TcTextGet(5);
+                message{5} := ArgName(TcLockPos{ToolPos});
+            ENDIF
+            WaitTime \InPos, 0;
+        ENDIF
+    ENDWHILE
+
+    ! Delete the temporary work zone
+!    WZFree TcTmpPos;
+
+    IF (err_action = TC_ABORT) THEN
+        TcAbortCycle ToolPos, TC_ERR_ROBPOS_PICK;
+        RETURN;
+    ENDIF
+
+  ENDPROC
+
+  ! Define zone and move to drop position, an ouput will be set when entering the zone
+  LOCAL PROC MoveRobToTcDropPos(num ToolPos, string Caller)
+
+    VAR string message{5};
+    VAR num err_action := TC_NOK;
+    VAR shapedata ShapeDat;
+    VAR num break_signal;
+
+    ! Init IO signals
+    TcInitIO;
+
+    message{1} := TcTextGet(4);
+    message{2} := " ";
+    message{4} := " ";
+
+    ! Initialize a temporary work zone
+    SetDO do_tc_drop_pos, 0;
+
+!    WZSphDef \Inside, ShapeDat, TcDropPos{ToolPos}.trans, TcWzRadius;
+!    WZDOSet \Temp, TcTmpPos \Inside, ShapeDat, do_tc_drop_pos, 1;
+    IF TcDropPos{ToolPos} <> TcUndefPos THEN
+        GoToTcDropPos ToolPos;
+    ENDIF
+
+    ! Wait for Inpos
+    WaitTime \InPos, 0;
+
+    WHILE (DOutput(do_tc_drop_pos) = 0) AND (err_action <> TC_ABORT) DO
+        err_action := UIMessageBox (\Header:= Caller
+                                    \MsgArray := message
+                                    \BtnArray := [stEmpty, stEmpty, stEmpty, TcTextGet(2), TcTextGet(3)]
+                                    \Icon := iconError
+                                    \DIBreak := di_tc_break_dialog
+                                    \BreakFlag := break_signal);
+
+        IF (DInput(di_tc_abort) = 1 AND break_signal = ERR_TP_DIBREAK) THEN
+            err_action := 4;
+        ELSEIF (DInput(di_tc_retry) = 1 AND break_signal = ERR_TP_DIBREAK) THEN
+            err_action := 5;
+        ENDIF
+
+        TEST err_action
+        CASE 4:
+            err_action := TC_ABORT;
+        CASE 5:
+            err_action := TC_GOTO_POS;
+        ENDTEST
+
+        IF (err_action = TC_GOTO_POS) THEN
+            IF TcDropPos{ToolPos} <> TcUndefPos THEN
+                GoToTcDropPos ToolPos;
+            ELSE
+                message{3} := TcTextGet(5);
+                message{5} := ArgName(TcLockPos{ToolPos});
+            ENDIF
+            WaitTime \InPos, 0;
+        ENDIF
+    ENDWHILE
+
+    ! Delete the temporary work zone
+!    WZFree TcTmpPos;
+
+    IF (err_action = TC_ABORT) THEN
+        TcAbortCycle ToolPos, TC_ERR_ROBPOS_DROP;
+        RETURN;
+    ENDIF
+
+  ENDPROC
+
+  ! Move to ready position with tool mounted in tool changer
+  LOCAL PROC MoveRobToTcReadyPos(num ToolPos)
+
+    IF TcLockPos{ToolPos} <> TcUndefPos THEN
+        GoToTcReadyPos ToolPos;
+        WaitTime \InPos, 0;
+    ENDIF
+
+  ENDPROC
+
+  ! Check if servo tool is configured.
+  LOCAL FUNC bool TcIsServoToolConfig(num ToolNum)
+
+    VAR mecunit tempmec;
+    VAR bool status := FALSE;
+
+    ! Check if servo tool is configured
+    IF (TcToolData{ToolNum}.Servo = TRUE) THEN
+        IF (TcToolData{ToolNum}.ToolName <> "") THEN
+            GetDataVal TcToolData{ToolNum}.ToolName, tempmec;
+            status := TRUE;
+        ELSE
+            status := FALSE;
+        ENDIF
+    ELSE
+        ! Not a servo tool, return OK
+        status := TRUE;
+    ENDIF
+
+    RETURN status;
+
+  ERROR
+    IF (ERRNO = ERR_SYM_ACCESS) THEN
+        SkipWarn;
+        RETURN FALSE;
+    ENDIF
+
+  ENDFUNC
+
+  ! Write elog message and show error dialog on FP
+  LOCAL FUNC num TcShowErrDialog(num ToolNum)
+
+    VAR string message{8};
+    VAR num status;
+    VAR num err_action;
+    VAR num break_signal;
+
+    ! Init IO signals
+    TcInitIO;
+
+    message{1} := TcErrInfo{ToolNum}.device_mod;
+    message{2} := " ";
+    message{3} := TcErrInfo{ToolNum}.description;
+    message{4} := " ";
+    message{5} := TcErrInfo{ToolNum}.routine;
+    message{6} := TcErrInfo{ToolNum}.error_info;
+    message{7} := " ";
+    message{8} := TcErrInfo{ToolNum}.action;
+
+    ! Write elog message
+    EventLog PROCESS_ERR, 760, TYPE_WARN, ERRSTR_TASK, ERRSTR_CONTEXT, 
+                                                       TcErrInfo{ToolNum}.description, 
+                                                       TcErrInfo{ToolNum}.routine + " " + TcErrInfo{ToolNum}.error_info,
+                                                       TcErrInfo{ToolNum}.action;
+
+    ! Show error on FP
+    err_action := UIMessageBox (\Header:= TcErrInfo{ToolNum}.error_type
+                            \MsgArray := message
+                            \BtnArray := [stEmpty, stEmpty, stEmpty, TcTextGet(2), TcTextGet(1)]
+                            \Icon := iconError
+                            \DIBreak := di_tc_break_dialog
+                            \BreakFlag := break_signal);
+
+    ! Clear Error Info structure
+    TcErrInfo{ToolNum}.device_mod := stEmpty;
+    TcErrInfo{ToolNum}.routine := stEmpty;
+    TcErrInfo{ToolNum}.error_type := stEmpty;
+    TcErrInfo{ToolNum}.description := stEmpty;
+    TcErrInfo{ToolNum}.error_info := stEmpty;
+    TcErrInfo{ToolNum}.action := stEmpty;
+
+    IF (DInput(di_tc_abort) = 1 AND break_signal = ERR_TP_DIBREAK) THEN
+        err_action := 4;
+    ELSEIF (DInput(di_tc_retry) = 1 AND break_signal = ERR_TP_DIBREAK) THEN
+        err_action := 5;
+    ENDIF
+
+    TEST err_action
+        CASE 4:
+            status := TC_ABORT;
+        CASE 5:
+            status := TC_RETRY;
+    ENDTEST
+
+    RETURN status;
+
+  ENDFUNC
+
+ENDMODULE

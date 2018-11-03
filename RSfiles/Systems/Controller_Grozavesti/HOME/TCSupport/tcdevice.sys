@@ -1,0 +1,789 @@
+%%%
+  VERSION:1
+  LANGUAGE:ENGLISH
+%%%
+
+MODULE TCDEVICE (SYSMODULE)
+!--------------------------------------------------------------------------
+! Module:  TCDEVICE ( Tool Change Device module )
+!
+! Description:  This module contains the equipment instructions for 
+!               controlling the tool changer system.
+!               This module is intended to be customized to fit a specific 
+!               tool changer system.
+!
+!--------------------------------------------------------------------------
+
+!---------------------------------------
+! G L O B A L  D A T A
+!--------------------------------------- 
+
+  ! Description: 
+  ! CONST string Version_XXXXXXXX := "1.2.3";
+  !
+  !          XXXXXXXX - Module name
+  !                 1 - version number  (changed of SEROP) 
+  !                 2 - revision number (changed of SEROP)
+  !                 3 - revision number (changed of SEROP)
+  CONST string Version_TCDEVICE := "5.12.0";
+
+!---------------------------------------
+! L O C A L  D A T A
+!--------------------------------------- 
+
+!--------------------------------------------------------
+! U S E R  I O  -  T O O L  S T A N D  S I G N A L S
+!--------------------------------------------------------
+
+  ! User signal (DI) to check if tool is present in stand, sensor1
+  LOCAL VAR signaldi di_tool_present1;
+
+  ! User signal (DI) to check if tool is present in stand, sensor2
+  LOCAL VAR signaldi di_tool_present2;
+
+  ! User signal (DI) to check if cover is opened
+  LOCAL VAR signaldi di_cover_opened;
+
+  ! User signal (DI) to check if cover is closed
+  LOCAL VAR signaldi di_cover_closed;
+
+  ! User signal (DO) to close the cover
+  LOCAL VAR signaldo do_cover_close;
+
+  ! User signal (DO) to open the cover
+  LOCAL VAR signaldo do_cover_open;
+
+!--------------------------------------------------------
+! U S E R  I O  -  T O O L  C H A N G E R  S I G N A L S
+!--------------------------------------------------------
+
+  ! User signal (DO) to unlock the tool
+  LOCAL VAR signaldo do_tc_unlock;
+
+  ! User signal (DO) to lock the tool
+  LOCAL VAR signaldo do_tc_lock;
+
+  ! User signal (DI) to check if tool is locked
+  LOCAL VAR signaldi di_tc_locked;
+
+  ! User signal (DI) to check if tool is unlocked
+  LOCAL VAR signaldi di_tc_unlocked;
+
+  ! User signal (GO) to check what tool is present
+  LOCAL VAR signalgo go_tc_lock_tool;
+
+  ! User signal (GI) to check what tool is mounted on robot
+  LOCAL VAR signalgi gi_tc_tool_code;
+
+  ! User signal (DI) to check that a tool is mounted on robot
+  LOCAL VAR signaldi di_tc_tool_onchanger;
+
+!--------------------------------------------------------
+! U S E R  I O  -  C O M M O N  S I G N A L S
+!--------------------------------------------------------
+
+  ! User signal (DI) to check if IO unit is on
+  LOCAL VAR signaldi di_io_power_on;
+
+  ! User signal (DI) to check if air is on
+  LOCAL VAR signaldi di_air_on;
+
+  ! User signal (DO) to check if error is active
+  LOCAL VAR signaldo do_err_active;
+
+!---------------------------------------------
+! I O   D E F I N I T I O N   R O U T I N E S
+!---------------------------------------------
+
+  ! Init common I/O signals
+  LOCAL PROC InitCommonIO()
+
+    AliasIO diIOPowerOn, di_io_power_on;
+    AliasIO doErrActive, do_err_active;
+    AliasIO diAirOn, di_air_on;
+
+  ENDPROC
+
+  ! Init tool stand signals
+  LOCAL PROC InitTcStandIO(num StandPos)
+
+    TEST StandPos
+    CASE 1:
+        AliasIO doClsCover_Stnd1, do_cover_close;
+        AliasIO doOpnCover_Stnd1, do_cover_open;
+        AliasIO diCoverOpnd_Stnd1, di_cover_opened;
+        AliasIO diCoverClsd_Stnd1, di_cover_closed;
+        AliasIO diTool1_Prsnt1, di_tool_present1;
+        AliasIO diTool1_Prsnt2, di_tool_present2;
+    CASE 2:
+        AliasIO doClsCover_Stnd2, do_cover_close;
+        AliasIO doOpnCover_Stnd2, do_cover_open;
+        AliasIO diCoverOpnd_Stnd2, di_cover_opened;
+        AliasIO diCoverClsd_Stnd2, di_cover_closed;
+        AliasIO diTool2_Prsnt1, di_tool_present1;
+        AliasIO diTool2_Prsnt2, di_tool_present2;
+    CASE 3:
+        AliasIO doClsCover_Stnd3, do_cover_close;
+        AliasIO doOpnCover_Stnd3, do_cover_open;
+        AliasIO diCoverOpnd_Stnd3, di_cover_opened;
+        AliasIO diCoverClsd_Stnd3, di_cover_closed;
+        AliasIO diTool3_Prsnt1, di_tool_present1;
+        AliasIO diTool3_Prsnt2, di_tool_present2;
+    CASE 4:
+        AliasIO doClsCover_Stnd4, do_cover_close;
+        AliasIO doOpnCover_Stnd4, do_cover_open;
+        AliasIO diCoverOpnd_Stnd4, di_cover_opened;
+        AliasIO diCoverClsd_Stnd4, di_cover_closed;
+        AliasIO diTool4_Prsnt1, di_tool_present1;
+        AliasIO diTool4_Prsnt2, di_tool_present2;
+    ENDTEST
+
+  ENDPROC
+
+  ! Init tool changer signals
+  LOCAL PROC InitTcIO(toolno ToolNum)
+
+    TEST ToolNum
+    CASE 1:
+        AliasIO doTC_UnLock, do_tc_unlock;
+        AliasIO doTC_Lock, do_tc_lock;
+        AliasIO diTC_Locked, di_tc_locked;
+        AliasIO diTC_UnLocked, di_tc_unlocked;
+        AliasIO goTC_LockTool, go_tc_lock_tool;
+        AliasIO giTC_ToolCode, gi_tc_tool_code;
+        AliasIO diTC_ToolOnChanger, di_tc_tool_onchanger;
+    CASE 2:
+        AliasIO doTC_UnLock, do_tc_unlock;
+        AliasIO doTC_Lock, do_tc_lock;
+        AliasIO diTC_Locked, di_tc_locked;
+        AliasIO diTC_UnLocked, di_tc_unlocked;
+        AliasIO goTC_LockTool, go_tc_lock_tool;
+        AliasIO giTC_ToolCode, gi_tc_tool_code;
+        AliasIO diTC_ToolOnChanger, di_tc_tool_onchanger;
+    CASE 3:
+        AliasIO doTC_UnLock, do_tc_unlock;
+        AliasIO doTC_Lock, do_tc_lock;
+        AliasIO diTC_Locked, di_tc_locked;
+        AliasIO diTC_UnLocked, di_tc_unlocked;
+        AliasIO goTC_LockTool, go_tc_lock_tool;
+        AliasIO giTC_ToolCode, gi_tc_tool_code;
+        AliasIO diTC_ToolOnChanger, di_tc_tool_onchanger;
+    CASE 4:
+        AliasIO doTC_UnLock, do_tc_unlock;
+        AliasIO doTC_Lock, do_tc_lock;
+        AliasIO diTC_Locked, di_tc_locked;
+        AliasIO diTC_UnLocked, di_tc_unlocked;
+        AliasIO goTC_LockTool, go_tc_lock_tool;
+        AliasIO giTC_ToolCode, gi_tc_tool_code;
+        AliasIO diTC_ToolOnChanger, di_tc_tool_onchanger;
+    ENDTEST
+
+  ENDPROC
+
+!----------------------------------------
+!  S H E L F   R O U T I N E S
+!----------------------------------------
+
+  ! Called if the system is restarted, warmstart.
+  LOCAL PROC TcPowerOn()
+
+	! Add code here
+
+  ENDPROC
+
+  ! Called if the program is started from the beginning, main.
+  LOCAL PROC TcStart()
+
+	! Add code here
+
+  ENDPROC
+
+  ! Called if the program is restarted after a program stop.
+  LOCAL PROC TcRestart()
+
+	! Add code here
+
+  ENDPROC
+
+  ! Called if the program is stopped.
+  LOCAL PROC TcStop()
+
+	! Add code here
+
+  ENDPROC
+
+  ! Called if the e-stop is activated.
+  LOCAL PROC TcQStop()
+
+	! Add code here
+
+  ENDPROC
+
+!----------------------------------------
+! T O O L C H A N G E R   R O U T I N E S
+!----------------------------------------
+
+  ! Open cover on tool stand
+  ! Returns: TC_ERR_OPEN_COV - Cover did not open within timeout
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  !			 TC_OK - No error
+  LOCAL PROC TcOpenCover(INOUT num ErrStatus, standno StandPos,
+  						 \num TimeOut \switch NoCheck \switch NoCover)
+
+    VAR bool cover_open_tout := FALSE;
+    VAR num time_out := 5;
+
+    IF (NOT Present(NoCover)) THEN
+        ! Init signals
+        InitCommonIO;
+        InitTcStandIO StandPos;
+        
+        ErrStatus := CheckIOAndMedia("TcOpenCover", StandPos);
+        IF ErrStatus <> TC_OK THEN
+            RETURN;
+        ENDIF
+        
+        SetDO do_err_active, 0;
+        
+        IF (Present(TimeOut)) THEN
+            time_out := TimeOut;
+        ENDIF
+        
+        ! Open the tool cover
+        SetDO do_cover_close, 0;
+        WaitTime 0.25;
+        SetDO do_cover_open, 1;
+        
+        ! Check if tool cover was opened
+        IF (NOT Present(NoCheck)) THEN
+            WaitUntil ((DInput(di_cover_opened) = 1) AND
+                       (DInput(di_cover_closed) = 0))
+                        \MaxTime := time_out \TimeFlag := cover_open_tout;
+        
+            IF cover_open_tout THEN
+                ! Open timeout
+                SetDO do_err_active, 1;
+                ! Update error info
+                TcErrInfo{StandPos}.device_mod := "TCDEVICE";
+                TcErrInfo{StandPos}.routine := "TcOpenCover()";
+                TcErrInfo{StandPos}.error_type := TcTextGet(6);
+                TcErrInfo{StandPos}.description := TcTextGet(9);
+                TcErrInfo{StandPos}.error_info := TcTextGet(19)+" "+ValToStr(StandPos);
+                TcErrInfo{StandPos}.action := TcTextGet(23);
+                ErrStatus := TC_ERR_OPEN_COV;
+                RETURN;
+            ENDIF
+        ENDIF
+    ELSE
+    	ErrStatus := TC_OK;
+    ENDIF
+
+  ENDPROC
+
+  ! Close cover on tool stand
+  ! Returns: TC_ERR_CLOSE_COV - Cover did not close within timeout
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  !			 TC_OK - No error
+  LOCAL PROC TcCloseCover(INOUT num ErrStatus, standno StandPos,
+                          \num TimeOut \switch NoCheck \switch NoCover)
+
+    VAR bool cover_close_tout := FALSE;
+    VAR num time_out := 5;
+
+    IF (NOT Present(NoCover)) THEN
+        ! Init signals
+        InitCommonIO;
+        InitTcStandIO StandPos;
+        
+        ErrStatus := CheckIOAndMedia("TcCloseCover", StandPos);
+        IF ErrStatus <> TC_OK THEN
+            RETURN;
+        ENDIF
+        
+        SetDO do_err_active, 0;
+        
+        IF (Present(TimeOut)) THEN
+            time_out := TimeOut;
+        ENDIF
+        
+        ! Close the tool cover
+        SetDO do_cover_open, 0;
+        WaitTime 0.25;
+        SetDO do_cover_close, 1;
+        
+        ! Check if tool cover was closed
+        IF (NOT Present(NoCheck)) THEN
+            WaitUntil ((DInput(di_cover_closed) = 1) AND
+                       (DInput(di_cover_opened) = 0))
+                       \MaxTime := time_out \TimeFlag := cover_close_tout;
+        
+            IF cover_close_tout THEN
+                ! Close timeout
+                SetDO do_err_active, 1;
+                ! Update error info
+                TcErrInfo{StandPos}.device_mod := "TCDEVICE";
+                TcErrInfo{StandPos}.routine := "TcCloseCover()";
+                TcErrInfo{StandPos}.error_type := TcTextGet(6);
+                TcErrInfo{StandPos}.description := TcTextGet(10);
+                TcErrInfo{StandPos}.error_info := TcTextGet(19)+" "+ValToStr(StandPos);
+                TcErrInfo{StandPos}.action := TcTextGet(23);
+                ErrStatus := TC_ERR_CLOSE_COV;
+                RETURN;
+            ENDIF
+        ENDIF
+    ELSE
+    	ErrStatus := TC_OK;
+    ENDIF
+
+  ENDPROC
+
+  ! Lock tool changer to the tool
+  ! Returns: TC_ERR_LOCK - Tool changer did not lock within timout
+  !          TC_ERR_ROBPOS - Robot not in position to lock tool
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  !          TC_ERR_SERVO_TOOL - Servo tool not configured in system
+  LOCAL PROC TcLockTool(INOUT num ErrStatus, toolno ToolNum
+  						\num TimeOut \switch NoIO)
+
+    VAR mecunit tempmec;
+    VAR bool tool_lock_tout := FALSE;
+    VAR num time_out := 5;
+    VAR bool servo_active := FALSE;
+
+    ! Init signals
+    InitCommonIO;
+    InitTcIO ToolNum;
+
+    ErrStatus := CheckIOAndMedia("TcLockTool", ToolNum);
+    IF ErrStatus <> TC_OK THEN
+        RETURN;
+    ENDIF
+
+    SetDO do_err_active, 0;
+
+    IF (Present(TimeOut)) THEN
+        time_out := TimeOut;
+    ENDIF
+
+    ! Lock the tool changer
+    SetDO do_tc_unlock, 0;
+    WaitTime 0.25;
+    SetDO do_tc_lock, 1;
+
+    ! Wait for locked tool changer
+    WaitUntil ((DInput(di_tc_locked) = 1) AND
+               (DInput(di_tc_unlocked) = 0) AND
+               (DInput(di_tc_tool_onchanger) = 1))
+                \MaxTime := time_out \TimeFlag := tool_lock_tout;
+
+    IF tool_lock_tout THEN
+        ! Lock timeout
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := "TCDEVICE";
+        TcErrInfo{ToolNum}.routine := "TcLockTool()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(13);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName;
+        TcErrInfo{ToolNum}.action := TcTextGet(25);
+        ErrStatus := TC_ERR_LOCK;
+        RETURN;
+    ELSE
+        IF (NOT Present(NoIO)) THEN
+          ! Give the tool changer time to align
+          WaitTime 0.5;
+          ErrStatus := TcControlEquip(ToolNum \TimeOut?TimeOut);
+        ENDIF
+
+        ! Activate servo tool
+        IF (TcToolData{ToolNum}.Servo = TRUE) THEN
+            GetDataVal TcToolData{ToolNum}.ToolName, tempmec;
+            servo_active := IsMechUnitActive(tempmec);
+            IF NOT (servo_active) THEN
+                ActUnit tempmec;
+            ENDIF
+        ENDIF
+
+        SetGO go_tc_lock_tool, ToolNum;
+    ENDIF
+
+  ERROR
+    IF ERRNO = ERR_SYM_ACCESS THEN
+        SkipWarn;
+        RAISE TC_ERR_SERVO_TOOL;
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Unlock tool changer from the tool
+  ! Returns: TC_ERR_UNLOCK - Tool changer did not unlock within timout
+  !          TC_ERR_ROBPOS - Robot not in position to unlock tool
+  !          TC_ERR_NOTOOL - No tool on robot
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  !          TC_ERR_SERVO_TOOL - Servo tool not configured in system
+  LOCAL PROC TcUnlockTool(INOUT num ErrStatus, toolno ToolNum
+  						  \num TimeOut \switch NoCheck)
+
+    VAR mecunit tempmec;
+    VAR bool tool_unlock_timeout := FALSE;
+    VAR num time_out := 5;
+    VAR bool servo_active := FALSE;
+
+    ! Init signals
+    InitCommonIO;
+    InitTcIO ToolNum;
+    InitTcStandIO ToolNum;
+
+    ErrStatus := CheckIOAndMedia("TcUnlockTool", ToolNum);
+    IF ErrStatus <> TC_OK THEN
+        RETURN;
+    ENDIF
+
+    SetDO do_err_active, 0;
+
+    IF (Present(TimeOut)) THEN
+        time_out := TimeOut;
+    ENDIF
+
+    ! Check that tool is mounted on robot
+    IF (GInput(gi_tc_tool_code) = ToolNum AND DInput(di_tc_tool_onchanger) = 1) THEN
+        ! Check that robot is in position to unlock tool, don't check stand I/O if \NoCheck is set
+        IF (NOT Present(NoCheck)) THEN
+        IF (DInput(di_tool_present1) = 0) OR (DInput(di_tool_present2) = 0) THEN
+            ! Error tool is not present in stand, robot not in position to unlock tool or sensor fault
+            SetDO do_err_active, 1;
+            ! Update error info
+            TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+            TcErrInfo{ToolNum}.routine := "TcUnlockTool()";
+            TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+            TcErrInfo{ToolNum}.description := TcTextGet(4);
+            TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName;
+            TcErrInfo{ToolNum}.action := TcTextGet(45);
+            ErrStatus := TC_ERR_ROBPOS;
+            RETURN;
+        ENDIF
+        ENDIF
+    ELSE
+        ! Error no tool on robot
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcUnlockTool()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(35);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName;
+        TcErrInfo{ToolNum}.action := TcTextGet(25);
+        ErrStatus := TC_ERR_NOTOOL;
+        RETURN;
+    ENDIF
+
+    IF (TcToolData{ToolNum}.Servo = TRUE) THEN
+        GetDataVal TcToolData{ToolNum}.ToolName, tempmec;
+        servo_active := IsMechUnitActive(tempmec);
+        IF servo_active THEN
+            DeactUnit tempmec;
+        ENDIF
+    ENDIF
+
+    ErrStatus := TcControlEquip(ToolNum \TimeOut?TimeOut \Disable);
+
+    IF (ErrStatus = TC_OK) THEN
+        ! Unlock the tool changer
+        SetDO do_tc_lock,0;
+        WaitTime 0.25;
+        SetDO do_tc_unlock,1;
+
+        ! Wait for tool changer to unlock
+        WaitUntil ((DInput(di_tc_unlocked) = 1) AND
+                   (DInput(di_tc_locked) = 0))
+                   \MaxTime := time_out \TimeFlag := tool_unlock_timeout;
+
+        IF tool_unlock_timeout THEN
+            SetDO do_tc_unlock,0;
+            SetDO do_tc_lock,1;
+            ! Unlock timeout
+            SetDO do_err_active, 1;
+            ! Update error info
+            TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+            TcErrInfo{ToolNum}.routine := "TcUnlockTool()";
+            TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+            TcErrInfo{ToolNum}.description := TcTextGet(14);
+            TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName+" "+TcTextGet(19)+" "+ValToStr(ToolNum);
+            TcErrInfo{ToolNum}.action := TcTextGet(25);
+            ErrStatus := TC_ERR_UNLOCK;
+            RETURN;
+        ENDIF
+
+        SetGO go_tc_lock_tool, 0;
+    ENDIF
+
+  ERROR
+    IF ERRNO = ERR_SYM_ACCESS THEN
+        SkipWarn;
+        RAISE TC_ERR_SERVO_TOOL;
+    ENDIF
+    RAISE;
+
+  ENDPROC
+
+  ! Check that tool is not present in stand and that the tool position is right
+  ! Returns: TC_ERR_TOOL - Tool present in stand
+  !          TC_ERR_DOUNLOCK - Dropoff while locked
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  LOCAL PROC TcChkNoToolAtStand(INOUT num ErrStatus, toolno ToolNum \switch NoCheck)
+
+    ! Init signals
+    InitCommonIO;
+    InitTcStandIO ToolNum;
+    InitTcIO ToolNum;
+
+    ErrStatus := CheckIOAndMedia("TcChkNoToolAtStand", ToolNum);
+    IF ErrStatus <> TC_OK THEN
+        RETURN;
+    ENDIF
+
+    SetDO do_err_active, 0;
+
+    IF (GInput(gi_tc_tool_code) = ToolNum) AND (DInput(di_tc_tool_onchanger) = 1) THEN
+        ! Check that no tool is present in stand, don't check stand I/O if \NoCheck is set
+        IF (NOT Present(NoCheck)) THEN
+        IF (DInput(di_tool_present1) = 1) OR (DInput(di_tool_present2) = 1) THEN
+            ! Error tool is present in stand
+            SetDO do_err_active, 1;
+            ! Update error info
+            TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+            TcErrInfo{ToolNum}.routine := "TcChkNoToolAtStand()";
+            TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+            TcErrInfo{ToolNum}.description := TcTextGet(12);
+            TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName+" "+TcTextGet(19)+" "+ValToStr(ToolNum);
+            TcErrInfo{ToolNum}.action := TcTextGet(24);
+            ErrStatus := TC_ERR_TOOL;
+            RETURN;
+        ENDIF
+        ENDIF
+    ELSE
+        ! Error no tool on robot
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcChkNoToolAtStand()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(35);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName;
+        TcErrInfo{ToolNum}.action := TcTextGet(24);
+        ErrStatus := TC_ERR_TOOL;
+        RETURN;
+    ENDIF
+
+    IF (DInput(di_tc_unlocked) = 1) THEN
+        ! Error tool changer unlocked
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcChkNoToolAtStand()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(16);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(19)+" "+ValToStr(ToolNum);
+        TcErrInfo{ToolNum}.action := TcTextGet(25);
+        ErrStatus := TC_ERR_DOUNLOCK;
+        RETURN;
+    ENDIF
+
+  ENDPROC
+
+  ! Check that tool is present in stand and that the tool position is right
+  ! Returns: TC_ERR_NOTOOL - No tool present in stand
+  !          TC_ERR_TOOL - Tool is mounted on robot
+  !          TC_ERR_PULOCK - Pickup while locked
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  LOCAL PROC TcChkToolAtStand(INOUT num ErrStatus, toolno ToolNum \switch NoCheck)
+
+    ! Init signals
+    InitCommonIO;
+    InitTcStandIO ToolNum;
+    InitTcIO ToolNum;
+
+    ErrStatus := CheckIOAndMedia("TcChkToolAtStand", ToolNum);
+    IF ErrStatus <> TC_OK THEN
+        RETURN;
+    ENDIF
+
+    SetDO do_err_active, 0;
+
+    IF (GInput(gi_tc_tool_code) = 0) AND (DInput(di_tc_tool_onchanger) = 0) THEN
+        ! Check that tool is present in stand, don't check stand I/O if \NoCheck
+        IF (NOT Present(NoCheck)) THEN
+        IF (DInput(di_tool_present1) = 0) OR (DInput(di_tool_present2) = 0) THEN
+            ! Error tool is not present in stand
+            SetDO do_err_active, 1;
+            ! Update error info
+            TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+            TcErrInfo{ToolNum}.routine := "TcChkToolAtStand()";
+            TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+            TcErrInfo{ToolNum}.description := TcTextGet(11);
+            TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName+" "+TcTextGet(19)+" "+ValToStr(ToolNum);
+            TcErrInfo{ToolNum}.action := TcTextGet(36);
+            ErrStatus := TC_ERR_NOTOOL;
+            RETURN;
+        ENDIF
+        ENDIF
+    ELSE
+        ! Error tool is mounted on robot
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcChkToolAtStand()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(34);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(39)+" "+TcToolData{ToolNum}.ToolName;
+        TcErrInfo{ToolNum}.action := TcTextGet(25);
+        ErrStatus := TC_ERR_TOOL;
+        RETURN;
+    ENDIF
+
+    IF (DInput(di_tc_locked) = 1) THEN
+        ! Error tool changer locked
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcChkToolAtStand()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(15);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(19)+" "+ValToStr(ToolNum);
+        TcErrInfo{ToolNum}.action := TcTextGet(25);
+        ErrStatus := TC_ERR_PULOCK;
+        RETURN;
+    ENDIF
+
+  ENDPROC
+
+  ! Check that tool is mounted on robot
+  ! Returns: TC_OK - Tool is mounted on robot
+  !          TC_ERR_TOOL - Error no tool on robot
+  LOCAL PROC TcChkToolOnRobot(INOUT num ErrStatus, toolno ToolNum)
+
+    ! Init signals
+    InitCommonIO;
+    InitTcIO ToolNum;
+
+    IF (GOutput(go_tc_lock_tool) = ToolNum) AND (GInput(gi_tc_tool_code) = ToolNum) THEN
+    	! Also check tool changer signals
+        IF (DInput(di_tc_locked) = 1) AND (DInput(di_tc_unlocked) = 0) AND (DInput(di_tc_tool_onchanger) = 1) THEN
+            ! OK, tool is mounted on robot
+            ErrStatus := TC_OK;
+            RETURN;
+        ELSE
+            ! Error tool is present in stand
+            ErrStatus := TC_ERR_TOOL;
+            RETURN;
+        ENDIF
+    ELSE
+        ! Error no tool on robot
+        ErrStatus := TC_ERR_TOOL;
+        RETURN;
+    ENDIF
+
+  ENDPROC
+
+  ! Disable or enable IO
+  ! Returns: TC_OK - Enable or Disable OK
+  !          TC_ERR_IOCFG - Invalid I/O unit
+  !          TC_ERR_IO - Error while disabling/enabling I/O
+  LOCAL FUNC num TcControlEquip(toolno ToolNum \num TimeOut \switch Disable)
+
+    ! Check if any I/O units are configured
+    ! 0 = No I/O units
+    IF (TcToolData{ToolNum}.IOUnits = 0) THEN
+        RETURN TC_OK;
+    ELSE
+        ! Enable or disable the I/O units
+        FOR i FROM 1 TO TcToolData{ToolNum}.IOUnits DO
+            IF (Present(TimeOut)) THEN
+                IF (Present(Disable)) THEN
+                    IODisable TcIOUnits{ToolNum,i},TimeOut;
+                ELSE
+                    IOEnable TcIOUnits{ToolNum,i},TimeOut;
+                ENDIF
+            ELSE
+                IF (Present(Disable)) THEN
+                    IODisable TcIOUnits{ToolNum,i},5;
+                ELSE
+                    IOEnable TcIOUnits{ToolNum,i},5;
+                ENDIF
+            ENDIF
+        ENDFOR
+    ENDIF
+
+    RETURN TC_OK;
+
+  ERROR
+    IF ((ERRNO = ERR_IOENABLE) OR (ERRNO = ERR_IODISABLE)) THEN
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcControlEquip()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(18);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(19)+" "+ValToStr(ToolNum);
+        TcErrInfo{ToolNum}.action := TcTextGet(27);
+        RETURN TC_ERR_IO;
+    ENDIF
+    IF ERRNO = ERR_NAME_INVALID THEN
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{ToolNum}.device_mod := DEVICE_MOD_NAME{ToolNum};
+        TcErrInfo{ToolNum}.routine := "TcControlEquip()";
+        TcErrInfo{ToolNum}.error_type := TcTextGet(6);
+        TcErrInfo{ToolNum}.description := TcTextGet(33);
+        TcErrInfo{ToolNum}.error_info := TcTextGet(19)+" "+ValToStr(ToolNum);
+        TcErrInfo{ToolNum}.action := TcTextGet(28);
+        RETURN TC_ERR_IOCFG;
+    ENDIF
+    RAISE;
+
+  ENDFUNC
+
+  ! Check if I/O power and air media are ok
+  ! Returns: TC_OK - OK
+  !          TC_ERR_POWER - No I/O power
+  !          TC_ERR_AIR - No air supply
+  LOCAL FUNC num CheckIOAndMedia(string Caller, toolno EquipNum)
+
+    IF (DInput(di_io_power_on) = 0) THEN
+        ! Error no I/O power
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{EquipNum}.device_mod := "TCDEVICE";
+        TcErrInfo{EquipNum}.routine := "TcOpenCover()";
+        TcErrInfo{EquipNum}.error_type := TcTextGet(6);
+        TcErrInfo{EquipNum}.description := TcTextGet(20);
+        TcErrInfo{EquipNum}.error_info := TcTextGet(27);
+        TcErrInfo{EquipNum}.action := TcTextGet(29);
+        RETURN TC_ERR_POWER;
+    ENDIF
+
+    IF (DInput(di_air_on) = 0) THEN
+        ! Error no air supply
+        SetDO do_err_active, 1;
+        ! Update error info
+        TcErrInfo{EquipNum}.device_mod := "TCDEVICE";
+        TcErrInfo{EquipNum}.routine := "TcOpenCover()";
+        TcErrInfo{EquipNum}.error_type := TcTextGet(6);
+        TcErrInfo{EquipNum}.description := TcTextGet(21);
+        TcErrInfo{EquipNum}.error_info := stEmpty;
+        TcErrInfo{EquipNum}.action := TcTextGet(30);
+        RETURN TC_ERR_AIR;
+    ENDIF
+
+    RETURN TC_OK;
+
+  ENDFUNC
+
+ENDMODULE

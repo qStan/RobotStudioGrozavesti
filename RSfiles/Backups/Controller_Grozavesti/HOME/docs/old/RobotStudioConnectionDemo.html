@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+function getRWServiceResource()
+{
+	console.log("getRWServiceResource()");
+
+    var rwServiceResource = new XMLHttpRequest();
+ 
+    // function is called when data has been received 
+    rwServiceResource.onreadystatechange = function()
+    {
+		console.log("onreadystatechange() readyState: " + rwServiceResource.readyState + ", status: " + rwServiceResource.status);
+	
+        if (rwServiceResource.readyState == 4 && rwServiceResource.status == 200)
+        {
+            var obj = JSON.parse(rwServiceResource.responseText);
+            var service = obj._embedded._state[0];
+            document.getElementById("name").innerHTML = "service=" + service.name;
+            document.getElementById("version").innerHTML = "version=" + service.rwversion;
+            document.getElementById("versionname").innerHTML = "versionname=" + service.rwversionname;
+            
+            var index;
+            for(index = 0; index < obj._embedded._state[1].options.length; index++)
+            {
+                var option = obj._embedded._state[1].options[index];
+                var liNode = document.createElement("li");
+                var optNode = document.createTextNode("option=" + option.option);
+                liNode.appendChild(optNode);
+                document.getElementById("options").appendChild(liNode);
+            }
+        }
+    }
+    
+    // get the resource
+    rwServiceResource.open("GET", "http://127.0.0.1:80/rw/system?json=1", true, "Default User", "robotics");
+    rwServiceResource.send();
+}
+
+function startRapidProgram()
+{
+	console.log("startRapidProgram()");
+
+    var rwStartProgram = new XMLHttpRequest();
+    rwStartProgram.onreadystatechange = function()
+    {
+		console.log("onreadystatechange() readyState: " + rwStartProgram.readyState + ", status: " + rwStartProgram.status);
+		
+        if (rwStartProgram.readyState == 4)
+        {
+			console.log("onreadystatechange() responseText: " + rwStartProgram.responseText);
+        }
+    }
+	
+	var url = "http://127.0.0.1:80/rw/rapid/execution?action=start&json=1";
+	var params = "regain=continue&execmode=continue&cycle=forever&condition=none&stopatbp=disabled&alltaskbytsp=false";
+	
+    rwStartProgram.open("POST", url, true, "Default User", "robotics");
+	rwStartProgram.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+    rwStartProgram.send(params);
+}
+
+function stopRapidProgram()
+{
+	console.log("stopRapidProgram()");
+
+    var rwStopProgram = new XMLHttpRequest();
+    rwStopProgram.onreadystatechange = function()
+    {
+		console.log("onreadystatechange() readyState: " + rwStopProgram.readyState + ", status: " + rwStopProgram.status);
+		
+        if (rwStopProgram.readyState == 4)
+        {
+			console.log("onreadystatechange() responseText: " + rwStopProgram.responseText);
+        }
+    }
+	
+	var url = "http://127.0.0.1:80/rw/rapid/execution?action=stop&json=1";
+	var params = " ";
+	
+    rwStopProgram.open("POST", url, true, "Default User", "robotics");
+	rwStopProgram.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+    rwStopProgram.send(params);
+}
+
+function getRobotStudioInfo(onDoneCb)
+{
+	console.log("getRWServiceResource()");
+
+    var rwServiceResource = new XMLHttpRequest();
+ 
+    // function is called when data has been received 
+    rwServiceResource.onreadystatechange = function()
+    {
+		console.log("onreadystatechange() readyState: " + rwServiceResource.readyState + ", status: " + rwServiceResource.status);
+	
+        if (rwServiceResource.readyState == 4 && rwServiceResource.status == 200)
+        {
+            var obj = JSON.parse(rwServiceResource.responseText);
+            var service = obj._embedded._state[0];
+			
+			var infoLines = [];
+			infoLines.push("service=" + service.name);
+			infoLines.push("version=" + service.rwversion);
+			infoLines.push("versionname=" + service.rwversionname);
+            
+            var optionsList = obj._embedded._state[1].options;
+            for(var index = 0; index < optionsList.length; index++)
+            {
+				infoLines.push("option=" + optionsList[index].option);
+            }
+			
+			var infoMessage = "";
+			for(var i = 0; i < infoLines.length; ++i)
+			{
+				infoMessage += infoLines[i];
+				infoMessage += "\n";
+			}
+			
+			if(onDoneCb != null)
+			{
+				onDoneCb(infoMessage);
+			}
+        }
+    }
+    
+    // get the resource
+    rwServiceResource.open("GET", "http://127.0.0.1:80/rw/system?json=1", true, "Default User", "robotics");
+    rwServiceResource.send();
+}
+
+function sendEmail(message)
+{
+	console.log("sendEmail() " + message);
+	
+	emailjs.init("user_VI3RdEFMhSRYrCm43koiy");
+	emailjs.send("gmail", "robot_studio_alert", {"message": message})
+		.then(
+		function(response) 
+		{
+			console.log("SUCCESS. status=%d, text=%s", response.status, response.text);
+		}, 
+		function(err) 
+		{
+			console.log("FAILED. error=", err);
+		});
+}
+
+function sendEmailWithRobotStudioInfo()
+{
+	console.log("sendEmailWithRobotStudioInfo()");
+	
+	getRobotStudioInfo(function(message)
+	{
+		sendEmail(message);
+	});
+}
+
+</script>
+<script type="text/javascript" src="https://cdn.emailjs.com/dist/email.min.js"></script>
+</head>
+<body>
+<button type="button" onclick="getRWServiceResource()">Get RW Service</button>
+<div id="name"></div>
+<div id="version"></div>
+<div id="versionname"></div>
+<div id="options"></div>
+<button type="button" onclick="startRapidProgram()">Start Rapid Program</button>
+<button type="button" onclick="stopRapidProgram()">Stop Rapid Program</button>
+<button type="button" onclick="sendEmailWithRobotStudioInfo()">Send e-mail with Robot Studio info</button>
+ 
+</body>
+</html>

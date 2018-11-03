@@ -1,0 +1,5 @@
+<?xml version = "1.0" encoding="utf-8" ?>
+<option_registry xmlns="urn:abb-robotics-registry-option">
+<entry option="gtpuSDK" path="C:/Users/lili/AppData/Local/ABB Industrial IT/Robotics IT/RobotWare/RobotWare_6.08.0134/options/gtpusdk"/>
+<entry option="iv_gui" path="C:/Users/lili/AppData/Local/ABB Industrial IT/Robotics IT/RobotWare/RobotWare_6.08.0134/options/iv"/>
+</option_registry>
